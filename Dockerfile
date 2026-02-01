@@ -38,5 +38,8 @@ COPY app/ ${LAMBDA_TASK_ROOT}/app/
 # Copy Lambda handler entry point
 COPY lambda_handler.py ${LAMBDA_TASK_ROOT}/
 
+# Copy scripts directory (for ECS polling service)
+COPY scripts/ ${LAMBDA_TASK_ROOT}/scripts/
+
 # Set Lambda handler
 CMD ["lambda_handler.lambda_handler"]
