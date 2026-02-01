@@ -22,6 +22,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     print("DEBUG: lambda_handler START", flush=True)
     try:
         print(f"DEBUG: Event keys: {list(event.keys())}", flush=True)
+        print(f"DEBUG: Event Path: {event.get('path')}", flush=True)
+        print(f"DEBUG: Event Resource: {event.get('resource')}", flush=True)
         
         # Import the main handler
         print("DEBUG: Importing app.main...", flush=True)
@@ -53,6 +55,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         status = 'unknown'
         if isinstance(result, dict):
             status = result.get('statusCode')
+            print(f"DEBUG: Result Body prefix: {str(result.get('body'))[:100]}", flush=True)
         
         print(f"DEBUG: Lambda execution completed. Status: {status}", flush=True)
         return result
