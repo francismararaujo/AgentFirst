@@ -157,8 +157,9 @@ class PollingStack(Stack):
                 "AWS_REGION": self.region,
             },
             # Override entrypoint and command to run Python script
+            # Working directory in Lambda image is /var/task
             entry_point=["python"],
-            command=["scripts/ifood_heartbeat.py"],
+            command=["/var/task/scripts/ifood_heartbeat.py"],
         )
 
         # Create ECS Service
