@@ -205,11 +205,11 @@ async def logging_middleware(request: Request, call_next: Callable):
         # Log error
         print(f"CRITICAL MIDDLEWARE ERROR: {str(e)}", flush=True)
         # logger.error(json.dumps({
-            "timestamp": time.time(),
-            "request_id": request_id,
-            "error": str(e),
-            "process_time_ms": round(process_time * 1000, 2)
-        }))
+        #     "timestamp": time.time(),
+        #     "request_id": request_id,
+        #     "error": str(e),
+        #     "process_time_ms": round(process_time * 1000, 2)
+        # }))
 
         return JSONResponse(
             status_code=500,
