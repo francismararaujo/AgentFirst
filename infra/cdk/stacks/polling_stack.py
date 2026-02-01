@@ -156,8 +156,9 @@ class PollingStack(Stack):
                 "ENVIRONMENT": environment,
                 "AWS_REGION": self.region,
             },
-            # Override the CMD to run the heartbeat script
-            command=["python", "scripts/ifood_heartbeat.py"],
+            # Override entrypoint and command to run Python script
+            entry_point=["python"],
+            command=["scripts/ifood_heartbeat.py"],
         )
 
         # Create ECS Service
