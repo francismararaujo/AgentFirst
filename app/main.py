@@ -203,7 +203,8 @@ async def logging_middleware(request: Request, call_next: Callable):
         process_time = time.time() - start_time
 
         # Log error
-        logger.error(json.dumps({
+        print(f"CRITICAL MIDDLEWARE ERROR: {str(e)}", flush=True)
+        # logger.error(json.dumps({
             "timestamp": time.time(),
             "request_id": request_id,
             "error": str(e),
@@ -290,7 +291,7 @@ async def docs_examples():
 
 # Telegram webhook endpoint
 @app.post("/webhook/telegram")
-@xray_recorder.capture("telegram_webhook")
+# @xray_recorder.capture("telegram_webhook")
 async def telegram_webhook(request: Request):
     """
     Telegram webhook endpoint - 100% AI-powered message processing
@@ -515,7 +516,7 @@ async def telegram_webhook(request: Request):
 
 # iFood webhook endpoint
 @app.post("/webhook/ifood")
-@xray_recorder.capture("ifood_webhook")
+# @xray_recorder.capture("ifood_webhook")
 async def ifood_webhook(request: Request):
     """
     iFood webhook endpoint - 100% production ready
@@ -1005,7 +1006,10 @@ async def value_error_handler(request: Request, exc: ValueError):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler"""
-    logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
+    print(f"CRITICAL APP EXCEPTION: {str(exc)}", flush=True)
+    import traceback
+    traceback.print_exc()
+    # logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={
