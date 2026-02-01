@@ -514,6 +514,21 @@ async def telegram_webhook(request: Request):
         )
 
 
+
+# iFood Debug Endpoint
+@app.get("/webhook/ifood/debug")
+async def ifood_debug():
+    """Debug endpoint for iFood connection"""
+    import sys
+    print("DEBUG: iFood Debug Endpoint HIT", flush=True)
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "message": "Connection successful",
+        "xray_enabled": settings.XRAY_ENABLED,
+        "debug_mode": settings.DEBUG
+    }
+
 # iFood webhook endpoint
 @app.post("/webhook/ifood")
 # @xray_recorder.capture("ifood_webhook")
