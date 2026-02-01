@@ -533,9 +533,11 @@ async def ifood_debug(request: Request):
     }
 
 # iFood webhook endpoint
-@app.post("/webhook/ifood")
-# @xray_recorder.capture("ifood_webhook")
+@app.api_route("/webhook/ifood", methods=["GET", "POST"])
+@app.api_route("/webhook/ifood/", methods=["GET", "POST"])
 async def ifood_webhook(request: Request):
+# @xray_recorder.capture("ifood_webhook")
+# async def ifood_webhook(request: Request):
     """
     iFood webhook endpoint - 100% production ready
 
