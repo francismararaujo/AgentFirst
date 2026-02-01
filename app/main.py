@@ -105,8 +105,9 @@ def update_order_in_cache(order_id, status):
         logger.error(f"Failed to update order cache: {e}")
 
 # Patch AWS SDK for X-Ray tracing
-if settings.XRAY_ENABLED:
-    patch_all()
+# Patch AWS SDK for X-Ray tracing
+# if settings.XRAY_ENABLED:
+#     patch_all()
 
 # Create FastAPI app
 app = FastAPI(
