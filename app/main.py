@@ -518,6 +518,9 @@ async def telegram_webhook(request: Request):
 async def ifood_webhook(request: Request):
     """
     iFood webhook endpoint - 100% production ready
+    """
+    import sys
+    print("DEBUG: iFood Webhook HIT", flush=True)
 
     Receives events from iFood API and processes them with full AWS integration.
     - Validates HMAC-SHA256 signature
