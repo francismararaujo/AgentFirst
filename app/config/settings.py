@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     DYNAMODB_AUDIT_TABLE: str = os.getenv("DYNAMODB_AUDIT_TABLE", "agentfirst-audit-logs")
     DYNAMODB_ESCALATION_TABLE: str = os.getenv("DYNAMODB_ESCALATION_TABLE", "agentfirst-escalation")
     DYNAMODB_OTP_TABLE: str = os.getenv("DYNAMODB_OTP_TABLE", "agentfirst-otp")
+    DYNAMODB_MERCHANTS_TABLE: str = os.getenv("DYNAMODB_MERCHANTS_TABLE", "agentfirst-merchants")
 
     # SNS Configuration
     SNS_OMNICHANNEL_TOPIC_ARN: str = os.getenv("SNS_OMNICHANNEL_TOPIC_ARN", "")
