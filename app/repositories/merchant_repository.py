@@ -1,7 +1,12 @@
 """Merchant Repository for multi-tenant iFood integration
 
 This module provides data access methods for managing merchants in DynamoDB.
-Each merchant represents a customer's iFood store with their own credentials.
+Each merchant represents a customer's iFood store.
+
+IMPORTANT: This uses a CENTRALIZED CREDENTIALS architecture.
+- AgentFirst has ONE set of iFood API credentials (in Secrets Manager)
+- Customers only provide their merchant_id (store ID)
+- No credentials are stored per-merchant in DynamoDB
 """
 
 import logging
@@ -106,14 +111,18 @@ class MerchantRepository:
         
         Args:
             data: Merchant data including:
-                - merchant_id: iFood merchant ID
+                - merchant_id: iFood merchant ID (provided by customer)
                 - user_email: Owner's email
-                - ifood_credentials: Dict with client_id, client_secret, webhook_secret
-                - status: 'active' | 'inactive' | 'suspended'
-                - polling_enabled: bool
+                - platform: 'ifood' | 'rappi' | 'ubereats' (default: 'ifood')
+                - status: 'active' | 'inactive' | 'suspended' (default: 'active')
+                - polling_enabled: bool (default: True)
                 
         Returns:
             True if successful, False otherwise
+            
+        Note:
+            Credentials are centralized (stored in Secrets Manager),
+            not per-merchant. Only merchant_id is needed from customer.
         """
         try:
             timestamp = int(datetime.utcnow().timestamp())
@@ -121,7 +130,7 @@ class MerchantRepository:
             item = {
                 'merchant_id': data['merchant_id'],
                 'user_email': data['user_email'],
-                'ifood_credentials': data['ifood_credentials'],
+                'platform': data.get('platform', 'ifood'),
                 'status': data.get('status', 'active'),
                 'polling_enabled': data.get('polling_enabled', True),
                 'created_at': timestamp,
@@ -131,7 +140,7 @@ class MerchantRepository:
             }
             
             self.table.put_item(Item=item)
-            logger.info(f"Created merchant {data['merchant_id']}")
+            logger.info(f"Created merchant {data['merchant_id']} for {data['user_email']}")
             return True
             
         except ClientError as e:

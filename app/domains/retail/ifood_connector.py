@@ -103,15 +103,21 @@ class iFoodConnector(BaseConnector):
     # Rate limiting
     MAX_REQUESTS_PER_MINUTE = 60
     
-    def __init__(self, secrets_manager: SecretsManager):
+    def __init__(self, secrets_manager: SecretsManager, merchant_id: str):
         """
         Inicializa conector iFood
         
         Args:
             secrets_manager: Gerenciador de secrets
+            merchant_id: ID da loja do cliente (fornecido no onboarding)
+            
+        Note:
+            Usa credenciais centralizadas do AgentFirst (Secrets Manager).
+            Apenas o merchant_id é específico por cliente.
         """
         super().__init__('ifood')
         self.secrets_manager = secrets_manager
+        self.merchant_id = merchant_id  # Dynamic per customer
         self.credentials: Optional[iFoodCredentials] = None
         self.token: Optional[iFoodToken] = None
         
@@ -147,17 +153,21 @@ class iFoodConnector(BaseConnector):
     
     async def _load_credentials(self) -> iFoodCredentials:
         """
-        Carrega credenciais do Secrets Manager
+        Carrega credenciais centralizadas do Secrets Manager
         
         Returns:
-            Credenciais do iFood
+            Credenciais do iFood (centralizadas) + merchant_id dinâmico
+            
+        Note:
+            Credenciais (client_id, client_secret, webhook_secret) são as mesmas
+            para todos os clientes. Apenas merchant_id é específico por cliente.
         """
         if self.credentials is None:
             secret = self.secrets_manager.get_secret("AgentFirst/ifood-credentials")
             self.credentials = iFoodCredentials(
                 client_id=secret['client_id'],
                 client_secret=secret['client_secret'],
-                merchant_id='2828a12d-bb09-4104-95c9-659f445c438f', # FORCE UUID
+                merchant_id=self.merchant_id,  # Dynamic per customer
                 webhook_secret=secret['webhook_secret']
             )
         return self.credentials
