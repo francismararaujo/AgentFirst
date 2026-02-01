@@ -120,7 +120,7 @@ class AuditEntry:
         # Criar string determinística para hash
         hash_data = {
             'audit_id': self.audit_id,
-            'timestamp': self.timestamp,
+            'timestamp': str(self.timestamp),
             'user_email': self.user_email,
             'agent': self.agent,
             'action': self.action,
@@ -321,7 +321,7 @@ class Auditor:
             logger.info(json.dumps({
                 'event': 'audit_log_created',
                 'audit_id': audit_id,
-                'user_email': email,
+            'user_email': email,
                 'agent': agent,
                 'action': action,
                 'category': category.value,
@@ -466,12 +466,7 @@ class Auditor:
             item['SK'] = f"AUDIT#{audit_entry.timestamp}#{audit_entry.audit_id}"
             item['email'] = audit_entry.user_email  # Required by table schema
             
-            # Convert timestamp to number for DynamoDB (expected N)
-            try:
-                dt = datetime.fromisoformat(audit_entry.timestamp.replace('Z', '+00:00'))
-                item['timestamp'] = int(dt.timestamp())
-            except ValueError:
-                item['timestamp'] = int(datetime.now(timezone.utc).timestamp())
+
             
             # Armazenar
             self.table.put_item(Item=item)

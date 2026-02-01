@@ -274,20 +274,24 @@ class OmnichannelInterface:
             )
             
             # 11. Publish event for coordination
-            await self.event_bus.publish_event(
-                event=EventMessage(
-                    event_type="message_processed",
-                    source="omnichannel",
-                    user_email=user.email,
-                    data={
-                        "email": user.email,
-                        "channel": channel.value,
-                        "intent": nlp_result.classification.intent.value,
-                        "connector": nlp_result.classification.connector,
-                        "processing_time_seconds": processing_time
-                    }
+            try:
+                await self.event_bus.publish_event(
+                    event=EventMessage(
+                        event_type="message_processed",
+                        source="omnichannel",
+                        user_email=user.email,
+                        data={
+                            "email": user.email,
+                            "channel": channel.value,
+                            "intent": nlp_result.classification.intent.value,
+                            "connector": nlp_result.classification.connector,
+                            "processing_time_seconds": processing_time
+                        }
+                    )
                 )
-            )
+            except Exception as ev_error:
+                # Non-blocking error - just log
+                logger.warning(f"Failed to publish message_processed event: {ev_error}")
             
             logger.info(f"Successfully processed message for {user.email} in {processing_time:.2f}s")
             

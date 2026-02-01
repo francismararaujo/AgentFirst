@@ -11,9 +11,11 @@ This module provides the FastAPI application with:
 """
 
 import logging
+import os
 import json
 import time
 import asyncio
+from datetime import datetime
 import hmac
 import hashlib
 from typing import Callable
@@ -48,6 +50,59 @@ from app.omnichannel.database.repositories import ChannelMappingRepository
 # Configure logging
 logging.basicConfig(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
+
+# Idempotency set (Simple in-memory for MVP)
+processed_events = set()
+
+# Global Cache using File for Persistence across RIE invocations
+import json
+ORDER_CACHE_FILE = "/tmp/recent_orders.json"
+
+def save_order_to_cache(order):
+    try:
+        orders = []
+        if os.path.exists(ORDER_CACHE_FILE):
+             with open(ORDER_CACHE_FILE, 'r') as f:
+                 orders = json.load(f)
+        orders.append(order)
+        # Keep last 50
+        if len(orders) > 50:
+            orders.pop(0)
+        with open(ORDER_CACHE_FILE, 'w') as f:
+            json.dump(orders, f)
+    except Exception as e:
+        logger.error(f"Failed to save order cache: {e}")
+
+def load_orders_from_cache():
+    try:
+        if os.path.exists(ORDER_CACHE_FILE):
+            with open(ORDER_CACHE_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load order cache: {e}")
+    return []
+
+def update_order_in_cache(order_id, status):
+    try:
+        if not os.path.exists(ORDER_CACHE_FILE):
+             return
+        
+        updated = False
+        orders = []
+        with open(ORDER_CACHE_FILE, 'r') as f:
+            orders = json.load(f)
+            
+        for order in orders:
+            if order.get('full_id') == order_id or order.get('id') == order_id:
+                order['status'] = status
+                updated = True
+        
+        if updated:
+            with open(ORDER_CACHE_FILE, 'w') as f:
+                json.dump(orders, f)
+                
+    except Exception as e:
+        logger.error(f"Failed to update order cache: {e}")
 
 # Patch AWS SDK for X-Ray tracing
 if settings.XRAY_ENABLED:
@@ -364,6 +419,9 @@ async def telegram_webhook(request: Request):
                     secrets_manager = SecretsManager()
                     ifood_connector = iFoodConnectorExtended(secrets_manager)
                     retail_agent.register_connector('ifood', ifood_connector)
+                    # Inject recent orders from global cache
+                    retail_agent.set_recent_orders(load_orders_from_cache())
+                    
                     brain.register_agent('retail', retail_agent)
                     
                     # Get supervisor chat ID from secrets or fallback to current chat
@@ -550,12 +608,24 @@ async def ifood_webhook(request: Request):
                 return {"ok": True}
 
             # Process iFood event
-            event_id = data.get("eventId")
+            event_id = data.get("eventId") or data.get("id")
             event_type = data.get("eventType")
-            merchant_id = data.get("merchantId")
+            
+            # Map fullCode to event_type if missing
+            if not event_type and data.get("fullCode"):
+                code_map = {
+                    "PLACED": "order.placed",
+                    "CONFIRMED": "order.confirmed",
+                    "DISPATCHED": "order.dispatched",
+                    "CANCELLED": "order.cancelled",
+                    "READY_TO_PICKUP": "order.ready_to_pickup"
+                }
+                event_type = code_map.get(data.get("fullCode"), data.get("fullCode"))
+                
+            merchant_id = data.get("merchantId") or (data.get("merchantIds") and data.get("merchantIds")[0])
             
             if not event_id or not event_type or not merchant_id:
-                logger.error("Missing required iFood event fields")
+                logger.error(f"Missing required iFood event fields: id={event_id}, type={event_type}, merchant={merchant_id}")
                 return {"ok": True}
 
         except Exception as e:
@@ -589,31 +659,91 @@ async def ifood_webhook(request: Request):
             # Process event based on type
             if event_type == "order.placed":
                 # New order received
-                order_id = data.get("orderId")
-                total_amount = data.get("totalAmount")
                 
-                logger.info(f"New order: {order_id} - R$ {total_amount}")
+                # Deduplication: Simple in-memory check
+                if event_id in processed_events:
+                    logger.info(f"Duplicate event {event_id} ignored")
+                    return {"ok": True}
+                processed_events.add(event_id)
+
+                order_id = data.get("orderId")
+                
+                # Fetch full details
+                try:
+                    order_details = await ifood_connector.get_order_details(order_id)
+                except Exception as details_error:
+                    logger.error(f"Failed to get details: {details_error}")
+                    order_details = {}
+
+                # Extract info
+                display_id = order_details.get("displayId", order_id[:4])
+                # Try to get total from details, or data, or sum items
+                total_val = order_details.get("total", {}).get("orderAmount")
+                if not total_val:
+                     total_val = data.get("totalAmount")
+                
+                total_str = f"{total_val:.2f}" if total_val else "A confirmar"
+                customer_name = order_details.get("customer", {}).get("name", "Cliente")
+
+                logger.info(f"New order: {display_id} ({order_id}) - R$ {total_str}")
+                
+                # STORE IN GLOBAL CACHE for RetailAgent "Show my orders"
+                # Map to RetailAgent expected format
+                simple_items = []
+                for item in order_details.get("items", []):
+                    simple_items.append(f"{item.get('quantity', 1)}x {item.get('name', 'Item')}")
+                
+                cached_order = {
+                    'id': display_id, # Use Short ID for display
+                    'full_id': order_id,
+                    'status': 'PLACED',
+                    'total': total_val if total_val else 0.0,
+                    'customer': customer_name,
+                    'items': simple_items,
+                    'created_at': datetime.utcnow().isoformat()
+                }
+                save_order_to_cache(cached_order)
                 
                 # Acknowledge event to iFood
                 await ifood_connector.acknowledge_event(event_id)
                 
                 # Publish event to SNS/SQS Event Bus
-                await event_bus.publish_event(
-                    event=EventMessage(
-                        event_type="ifood.order.placed",
-                        source="ifood_webhook",
-                        user_email=f"merchant_{merchant_id}@ifood.com",
-                        data={
-                            "event_id": event_id,
-                            "order_id": order_id,
-                            "merchant_id": merchant_id,
-                            "total_amount": total_amount,
-                            "items": data.get("items", []),
-                            "customer": data.get("customer", {}),
-                            "delivery_address": data.get("deliveryAddress", {})
-                        }
+                try:
+                    await event_bus.publish_event(
+                        event=EventMessage(
+                            event_type="ifood.order.placed",
+                            source="ifood_webhook",
+                            user_email=f"merchant_{merchant_id}@ifood.com",
+                            data={
+                                "event_id": event_id,
+                                "order_id": order_id,
+                                "display_id": display_id,
+                                "total_amount": total_val,
+                                "items": order_details.get("items", []),
+                                "customer": order_details.get("customer", {}),
+                                "delivery_address": order_details.get("deliveryAddress", {})
+                            }
+                        )
                     )
-                )
+                except Exception as sns_error:
+                    logger.warning(f"EventBus publish failed (non-critical): {sns_error}")
+
+                # Send Telegram Notification
+                try:
+                    chat_id = secrets_manager.get_telegram_chat_id()
+                    if chat_id:
+                        telegram_service = TelegramService()
+                        msg = (
+                            f"🔔 <b>Novo Pedido iFood!</b> 🛵\n\n"
+                            f"<b>Pedido:</b> #{display_id}\n"
+                            f"<b>Cliente:</b> {customer_name}\n"
+                            f"<b>Valor:</b> R$ {total_str}\n\n"
+                            f"Digitar: <code>Despachar pedido {order_id}</code>"
+                        )
+                        await telegram_service.send_message(chat_id=int(chat_id), text=msg, parse_mode="HTML")
+                        logger.info(f"Notification sent to {chat_id}")
+                except Exception as notify_error:
+                    logger.error(f"Failed to notify Telegram: {notify_error}")
                 
                 # Audit the event to DynamoDB
                 await auditor.log_transaction(
@@ -624,34 +754,40 @@ async def ifood_webhook(request: Request):
                     input_data={
                         "event_id": event_id,
                         "order_id": order_id,
-                        "total_amount": total_amount,
-                        "items_count": len(event_data.get("items", []))
+                        "total_amount": total_val,
+                        "items_count": len(data.get("items", []))
                     },
                     output_data={"acknowledged": True}
                 )
                 
             elif event_type == "order.confirmed":
                 # Order confirmed
-                order_id = event_data.get("orderId")
+                order_id = data.get("orderId")
                 logger.info(f"Order confirmed: {order_id}")
                 
+                # Update cache status
+                update_order_in_cache(order_id, "CONFIRMED")
+                
                 # Acknowledge event
-                await ifood_connector.acknowledge_event(event_id, merchant_id)
+                await ifood_connector.acknowledge_event(event_id)
                 
                 # Publish event
-                await event_bus.publish_event(
-                    event=EventMessage(
-                        event_type="ifood.order.confirmed",
-                        source="ifood_webhook",
-                        user_email=f"merchant_{merchant_id}@ifood.com",
-                        data={
-                            "event_id": event_id,
-                            "order_id": order_id,
-                            "merchant_id": merchant_id,
-                            "confirmed_at": event_data.get("confirmedAt")
-                        }
+                try:
+                    await event_bus.publish_event(
+                        event=EventMessage(
+                            event_type="ifood.order.confirmed",
+                            source="ifood_webhook",
+                            user_email=f"merchant_{merchant_id}@ifood.com",
+                            data={
+                                "event_id": event_id,
+                                "order_id": order_id,
+                                "merchant_id": merchant_id,
+                                "confirmed_at": data.get("confirmedAt")
+                            }
+                        )
                     )
-                )
+                except Exception as sns_error:
+                     logger.warning(f"EventBus publish failed for confirmed (non-critical): {sns_error}")
                 
                 # Audit
                 await auditor.log_transaction(
@@ -669,24 +805,30 @@ async def ifood_webhook(request: Request):
                 cancellation_reason = data.get("cancellationReason")
                 logger.info(f"Order cancelled: {order_id} - Reason: {cancellation_reason}")
                 
+                # Update cache status
+                update_order_in_cache(order_id, "CANCELLED")
+                
                 # Acknowledge event
                 await ifood_connector.acknowledge_event(event_id)
                 
                 # Publish event
-                await event_bus.publish_event(
-                    event=EventMessage(
-                        event_type="ifood.order.cancelled",
-                        source="ifood_webhook",
-                        user_email=f"merchant_{merchant_id}@ifood.com",
-                        data={
-                            "event_id": event_id,
-                            "order_id": order_id,
-                            "merchant_id": merchant_id,
-                            "reason": cancellation_reason,
-                            "cancelled_at": data.get("cancelledAt")
-                        }
+                try:
+                    await event_bus.publish_event(
+                        event=EventMessage(
+                            event_type="ifood.order.cancelled",
+                            source="ifood_webhook",
+                            user_email=f"merchant_{merchant_id}@ifood.com",
+                            data={
+                                "event_id": event_id,
+                                "order_id": order_id,
+                                "merchant_id": merchant_id,
+                                "reason": cancellation_reason,
+                                "cancelled_at": data.get("cancelledAt")
+                            }
+                        )
                     )
-                )
+                except Exception as sns_error:
+                    logger.warning(f"EventBus publish failed for cancelled (non-critical): {sns_error}")
                 
                 # Audit
                 await auditor.log_transaction(
@@ -695,6 +837,84 @@ async def ifood_webhook(request: Request):
                     category=AuditCategory.BUSINESS_OPERATION,
                     level=AuditLevel.WARNING,
                     input_data={"event_id": event_id, "order_id": order_id, "reason": cancellation_reason},
+                    output_data={"acknowledged": True}
+                )
+                
+            elif event_type == "order.dispatched":
+                # Order dispatched
+                order_id = data.get("orderId")
+                logger.info(f"Order dispatched: {order_id}")
+                
+                # Update cache status
+                update_order_in_cache(order_id, "DISPATCHED")
+                
+                # Acknowledge event
+                await ifood_connector.acknowledge_event(event_id)
+                
+                # Publish event
+                try:
+                    await event_bus.publish_event(
+                        event=EventMessage(
+                            event_type="ifood.order.dispatched",
+                            source="ifood_webhook",
+                            user_email=f"merchant_{merchant_id}@ifood.com",
+                            data={
+                                "event_id": event_id,
+                                "order_id": order_id,
+                                "merchant_id": merchant_id,
+                                "dispatched_at": datetime.now().isoformat()
+                            }
+                        )
+                    )
+                except Exception as sns_error:
+                    logger.warning(f"EventBus publish failed for dispatched: {sns_error}")
+                
+                # Audit
+                await auditor.log_transaction(
+                    email=f"merchant_{merchant_id}@ifood.com",
+                    action="ifood_order_dispatched",
+                    category=AuditCategory.BUSINESS_OPERATION,
+                    level=AuditLevel.INFO,
+                    input_data={"event_id": event_id, "order_id": order_id},
+                    output_data={"acknowledged": True}
+                )
+                
+            elif event_type == "order.ready_to_pickup":
+                # Order ready
+                order_id = data.get("orderId")
+                logger.info(f"Order ready: {order_id}")
+                
+                # Update cache status
+                update_order_in_cache(order_id, "READY")
+                
+                # Acknowledge event
+                await ifood_connector.acknowledge_event(event_id)
+                
+                # Publish event
+                try:
+                    await event_bus.publish_event(
+                        event=EventMessage(
+                            event_type="ifood.order.ready_to_pickup",
+                            source="ifood_webhook",
+                            user_email=f"merchant_{merchant_id}@ifood.com",
+                            data={
+                                "event_id": event_id,
+                                "order_id": order_id,
+                                "merchant_id": merchant_id,
+                                "ready_at": datetime.now().isoformat()
+                            }
+                        )
+                    )
+                except Exception as sns_error:
+                    logger.warning(f"EventBus publish failed for ready: {sns_error}")
+                
+                # Audit
+                await auditor.log_transaction(
+                    email=f"merchant_{merchant_id}@ifood.com",
+                    action="ifood_order_ready",
+                    category=AuditCategory.BUSINESS_OPERATION,
+                    level=AuditLevel.INFO,
+                    input_data={"event_id": event_id, "order_id": order_id},
                     output_data={"acknowledged": True}
                 )
                 

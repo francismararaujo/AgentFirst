@@ -9,7 +9,7 @@ from pydantic import ConfigDict
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
 
-    model_config = ConfigDict(env_file=".env", case_sensitive=True)
+    model_config = ConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")

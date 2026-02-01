@@ -75,7 +75,11 @@ class RetailAgent:
             'manage_store': self.manage_store,
             'update_inventory': self.update_inventory,
             'forecast_demand': self.forecast_demand,
-            'greeting': self.greeting
+            'greeting': self.greeting,
+            'dispatch_order': self.dispatch_order,
+            'list_cancellation_reasons': self.list_cancellation_reasons,
+            'open_store': self.open_store,
+            'close_store': self.close_store
         }
     
     def register_connector(self, connector_type: str, connector):
@@ -248,8 +252,10 @@ class RetailAgent:
         """
         try:
             connector_type = intent.connector or 'ifood'  # Default para iFood
+            logger.info(f"RetailAgent checking orders for connector: {connector_type}. Available: {list(self.connectors.keys())}")
             
             if connector_type not in self.connectors:
+                logger.warning(f"Connector {connector_type} not found, using MOCK data")
                 # Mock response para desenvolvimento
                 mock_orders = [
                     {
@@ -288,31 +294,45 @@ class RetailAgent:
                     'orders': mock_orders,
                     'total_orders': len(mock_orders),
                     'pending_orders': len([o for o in mock_orders if o['status'] == 'pending']),
-                    'message': f"Encontrados {len(mock_orders)} pedidos no {connector_type.upper()}"
+                    'message': f"Encontrados {len(mock_orders)} pedidos no {connector_type.upper()} (MOCK)"
                 }
             
             # Usar conector real
+            logger.info(f"Using REAL connector for {connector_type}")
             connector = self.connectors[connector_type]
             orders = await connector.get_orders()
+            logger.info(f"Retrieved {len(orders)} orders from connector")
             
             # Atualizar estado
             self.state.last_connector = connector_type
             self.state.last_orders = orders
             
+            # Combine with recent saved orders if connector returns empty (API limitation fix)
+            if not orders and hasattr(self, 'recent_saved_orders') and self.recent_saved_orders:
+                logger.info(f"Connector returned empty, using {len(self.recent_saved_orders)} recent saved orders")
+                orders = self.recent_saved_orders
+                self.state.last_orders = orders
+
             return {
                 'success': True,
                 'connector': connector_type,
                 'orders': orders,
                 'total_orders': len(orders),
-                'pending_orders': len([o for o in orders if o.get('status') == 'pending'])
+                'pending_orders': len([o for o in orders if o.get('status') in ['PLC', 'PLACED', 'pending']]),
+                'message': f"Encontrados {len(orders)} pedidos no {connector_type.upper()}"
             }
             
         except Exception as e:
-            logger.error(f"Error checking orders: {str(e)}")
+            logger.error(f"Error checking orders: {str(e)}", exc_info=True)
             return {
                 'success': False,
-                'error': f"Erro ao verificar pedidos: {str(e)}"
+                'message': f"Erro ao verificar pedidos: {str(e)}"
             }
+
+    def set_recent_orders(self, orders: List[Dict[str, Any]]):
+        """Set recent orders from external cache (Webhook)"""
+        self.recent_saved_orders = orders
+        logger.info(f"RetailAgent loaded {len(orders)} recent orders from cache")
     
     async def confirm_order(self, intent: Intent, context: Context) -> Dict[str, Any]:
         """
@@ -425,7 +445,130 @@ class RetailAgent:
                 'success': False,
                 'error': f"Erro ao cancelar pedido: {str(e)}"
             }
-    
+
+
+    async def list_cancellation_reasons(self, intent: Intent, context: Context) -> Dict[str, Any]:
+        """
+        Lista motivos de cancelamento
+        """
+        try:
+            order_id = intent.entities.get('order_id')
+            connector_type = intent.connector or self.state.last_connector or 'ifood'
+            
+            if not order_id:
+                return {'success': False, 'error': 'ID do pedido não especificado'}
+            
+            if connector_type not in self.connectors:
+                return {'success': False, 'error': f'Conector {connector_type} não configurado'}
+                
+            connector = self.connectors[connector_type]
+            
+            if not hasattr(connector, 'get_cancellation_reasons'):
+                return {'success': False, 'error': f'Conector {connector_type} não suporta consulta de motivos'}
+                
+            reasons = await connector.get_cancellation_reasons(order_id)
+            
+            return {
+                'success': True,
+                'order_id': order_id,
+                'connector': connector_type,
+                'reasons': reasons
+            }
+            
+        except Exception as e:
+            logger.error(f"Error listing cancellation reasons: {str(e)}")
+            return {'success': False, 'error': str(e)}
+
+    async def dispatch_order(self, intent: Intent, context: Context) -> Dict[str, Any]:
+        """
+        Despacha pedido específico
+        """
+        try:
+            order_id = intent.entities.get('order_id')
+            connector_type = intent.connector or self.state.last_connector or 'ifood'
+            
+            if not order_id:
+                return {'success': False, 'error': 'ID do pedido não especificado'}
+            
+            if connector_type not in self.connectors:
+                return {'success': False, 'error': f'Conector {connector_type} não configurado'}
+            
+            connector = self.connectors[connector_type]
+            
+            if not hasattr(connector, 'dispatch_order'):
+                return {'success': False, 'error': f'Conector {connector_type} não suporta despacho'}
+                
+            result = await connector.dispatch_order(order_id)
+            
+            return {
+                'success': True,
+                'order_id': order_id,
+                'connector': connector_type,
+                'result': result
+            }
+            
+        except Exception as e:
+            logger.error(f"Error dispatching order: {str(e)}")
+            return {'success': False, 'error': str(e)}
+
+    async def open_store(self, intent: Intent, context: Context) -> Dict[str, Any]:
+        """
+        Abre a loja
+        """
+        try:
+            connector_type = intent.connector or 'ifood'
+            
+            if connector_type not in self.connectors:
+                return {'success': False, 'error': f'Conector {connector_type} não configurado'}
+                
+            connector = self.connectors[connector_type]
+            
+            if not hasattr(connector, 'open_store'):
+                return {'success': False, 'error': f'Conector {connector_type} não suporte gestão de loja'}
+                
+            result = await connector.open_store()
+            
+            return {
+                'success': True,
+                'status': 'OPEN',
+                'connector': connector_type,
+                'result': result
+            }
+            
+        except Exception as e:
+            logger.error(f"Error opening store: {str(e)}")
+            return {'success': False, 'error': str(e)}
+
+    async def close_store(self, intent: Intent, context: Context) -> Dict[str, Any]:
+        """
+        Fecha a loja
+        """
+        try:
+            reason = intent.entities.get('reason', 'Fechado pelo gestor')
+            duration = int(intent.entities.get('duration', 60))
+            connector_type = intent.connector or 'ifood'
+            
+            if connector_type not in self.connectors:
+                return {'success': False, 'error': f'Conector {connector_type} não configurado'}
+                
+            connector = self.connectors[connector_type]
+            
+            if not hasattr(connector, 'close_store'):
+                return {'success': False, 'error': f'Conector {connector_type} não suporte gestão de loja'}
+                
+            result = await connector.close_store(reason=reason, duration_minutes=duration)
+            
+            return {
+                'success': True,
+                'status': 'CLOSED',
+                'connector': connector_type,
+                'result': result
+            }
+            
+        except Exception as e:
+            logger.error(f"Error closing store: {str(e)}")
+            return {'success': False, 'error': str(e)}
+
     async def check_revenue(self, intent: Intent, context: Context) -> Dict[str, Any]:
         """
         Verifica faturamento
