@@ -560,9 +560,17 @@ async def ifood_webhook(request: Request):
             try:
                 secrets_manager = SecretsManager()
                 # Retrieve credentials from the main secret
-                ifood_creds = secrets_manager.get_secret("AgentFirst/ifood-credentials")
+                # Retrieve credentials from Secrets Manager (Try known names)
+                ifood_creds = secrets_manager.get_secret("ifood/webhook-secret")
+                
+                if not ifood_creds:
+                    ifood_creds = secrets_manager.get_secret("ifood-oauth-credentials")
+                    
+                if not ifood_creds:
+                    ifood_creds = secrets_manager.get_secret("AgentFirst/ifood-credentials")
+
                 if not ifood_creds or "client_secret" not in ifood_creds:
-                     logger.error("iFood credentials or client_secret not found in Secrets Manager")
+                     logger.error("iFood credentials (client_secret) not found in Secrets Manager (Checked: ifood/webhook-secret, ifood-oauth-credentials, AgentFirst/ifood-credentials)")
                      return JSONResponse(status_code=500, content={"error": "Configuration error"})
                 
                 # iFood uses the application's client_secret to sign webhook requests
