@@ -46,6 +46,7 @@ from app.omnichannel.interface import OmnichannelInterface
 from app.omnichannel.authentication.auth_service import AuthService, AuthConfig
 from app.omnichannel.authentication.telegram_auth import TelegramAuthService
 from app.omnichannel.database.repositories import ChannelMappingRepository
+from app.routes import merchants  # Multi-tenant merchant API
 
 # Configure logging
 logging.basicConfig(level=settings.LOG_LEVEL)
@@ -218,6 +219,10 @@ async def logging_middleware(request: Request, call_next: Callable):
                 "request_id": request_id
             }
         )
+
+
+# Register API routers
+app.include_router(merchants.router)
 
 
 # Health check endpoint
