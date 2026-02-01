@@ -12,6 +12,7 @@ from aws_cdk import App, Environment
 from stacks.core_stack import CoreStack
 from stacks.lambda_stack import LambdaStack
 from stacks.monitoring_stack import MonitoringStack
+from stacks.polling_stack import PollingStack
 
 
 def main():
@@ -56,9 +57,18 @@ def main():
         description="AgentFirst2 MVP - CloudWatch & X-Ray Monitoring"
     )
 
+    polling_stack = PollingStack(
+        app,
+        f"agentfirst-polling-{environment_name}",
+        env=env,
+        environment=environment_name,
+        description="AgentFirst2 MVP - iFood Polling Service (ECS Fargate)"
+    )
+
     # Add dependencies
     lambda_stack.add_dependency(core_stack)
     monitoring_stack.add_dependency(lambda_stack)
+    polling_stack.add_dependency(lambda_stack)
 
     app.synth()
 
