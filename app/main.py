@@ -405,87 +405,109 @@ async def telegram_webhook(request: Request):
                     # We could optionally proceed to process the message here, 
                     # but it's cleaner to just return the welcome message.
             else:
-                # User exists and is verified - process via Brain with full AWS integration
-                try:
-                    # Initialize all services with real AWS clients
-                    auditor = Auditor()
-                    supervisor = Supervisor(auditor=auditor, telegram_service=telegram)
+                # User exists and is verified - check for merchant commands first
+                user_email = auth_result.get("email")
+                merchant_response = None
+                
+                # Check if message is a merchant command
+                if text.startswith('/'):
+                    from app.omnichannel.telegram_merchant_commands import TelegramMerchantCommands
                     
-                    # Initialize EventBus with SNS/SQS
-                    event_bus_config = EventBusConfig(
-                        region=settings.AWS_REGION,
-                        sns_topic_arn=settings.SNS_OMNICHANNEL_TOPIC_ARN
+                    merchant_commands = TelegramMerchantCommands()
+                    command = text.split()[0] if text.strip() else ''
+                    
+                    # Try to handle as merchant command
+                    merchant_response = await merchant_commands.handle_command(
+                        command=command,
+                        user_email=user_email,
+                        message_text=text
                     )
-                    event_bus = EventBus(event_bus_config)
-                    
-                    # Initialize Brain with Bedrock
-                    brain = Brain(auditor=auditor, supervisor=supervisor)
-                    
-                    # Initialize and register retail agent with iFood connector
-                    retail_agent = RetailAgent(auditor=auditor)
-                    secrets_manager = SecretsManager()
-                    ifood_connector = iFoodConnectorExtended(secrets_manager)
-                    retail_agent.register_connector('ifood', ifood_connector)
-                    # Inject recent orders from global cache
-                    retail_agent.set_recent_orders(load_orders_from_cache())
-                    
-                    brain.register_agent('retail', retail_agent)
-                    
-                    # Get supervisor chat ID from secrets or fallback to current chat
-                    supervisor_chat_id = secrets_manager.get_telegram_chat_id() or str(chat_id)
-                    
-                    # Configure supervisor for H.I.T.L.
-                    brain.configure_supervisor(
-                        supervisor_id="default",
-                        name="Supervisor Padrão",
-                        telegram_chat_id=supervisor_chat_id,
-                        specialties=["retail", "general"],
-                        priority_threshold=1
-                    )
-                    
-                    # Initialize omnichannel interface
-                    omnichannel = OmnichannelInterface(
-                        brain=brain,
-                        auditor=auditor,
-                        supervisor=supervisor,
-                        event_bus=event_bus,
-                        telegram_service=telegram
-                    )
-                    
-                    # Register user channel mapping
-                    await omnichannel.register_user_channel(
-                        email=user.email,
-                        channel=ChannelType.TELEGRAM,
-                        channel_user_id=str(user_id),
-                        metadata={"chat_id": str(chat_id)}
-                    )
-                    
-                    # Process message via omnichannel interface (100% AI via Bedrock)
-                    result = await omnichannel.process_message(
-                        channel=ChannelType.TELEGRAM,
-                        channel_user_id=str(user_id),
-                        message_text=text,
-                        message_id=str(message.get("message_id", "unknown")),
-                        metadata={"chat_id": str(chat_id)}
-                    )
-                    
-                    if result["success"]:
-                        response_text = result["response"]
-                        logger.info(f"Brain processed message successfully in {result.get('processing_time_seconds', 0):.2f}s")
-                    else:
-                        response_text = result["response"]
-                        logger.warning(f"Brain processing failed: {result.get('reason', 'unknown')}")
-                    
-                    # Ensure response_text is not None/null
-                    if not response_text or response_text == "null":
-                        response_text = "❌ Ocorreu um erro silencioso no processamento. Tente novamente."
+                
+                # If merchant command was handled, use that response
+                if merchant_response:
+                    response_text = merchant_response
+                else:
+                    # Not a merchant command or command not recognized - process via Brain
+                    try:
+                        # Initialize all services with real AWS clients
+                        auditor = Auditor()
+                        supervisor = Supervisor(auditor=auditor, telegram_service=telegram)
                         
-                except Exception as brain_error:
-                    logger.error(f"Error processing via Brain: {str(brain_error)}", exc_info=True)
-                    response_text = (
-                        "❌ Erro ao processar sua mensagem.\n\n"
-                        "🔧 Tente novamente em alguns segundos."
-                    )
+                        # Initialize EventBus with SNS/SQS
+                        event_bus_config = EventBusConfig(
+                            region=settings.AWS_REGION,
+                            sns_topic_arn=settings.SNS_OMNICHANNEL_TOPIC_ARN
+                        )
+                        event_bus = EventBus(event_bus_config)
+                        
+                        # Initialize Brain with Bedrock
+                        brain = Brain(auditor=auditor, supervisor=supervisor)
+                        
+                        # Initialize and register retail agent with iFood connector
+                        retail_agent = RetailAgent(auditor=auditor)
+                        secrets_manager = SecretsManager()
+                        ifood_connector = iFoodConnectorExtended(secrets_manager)
+                        retail_agent.register_connector('ifood', ifood_connector)
+                        # Inject recent orders from global cache
+                        retail_agent.set_recent_orders(load_orders_from_cache())
+                        
+                        brain.register_agent('retail', retail_agent)
+                        
+                        # Get supervisor chat ID from secrets or fallback to current chat
+                        supervisor_chat_id = secrets_manager.get_telegram_chat_id() or str(chat_id)
+                        
+                        # Configure supervisor for H.I.T.L.
+                        brain.configure_supervisor(
+                            supervisor_id="default",
+                            name="Supervisor Padrão",
+                            telegram_chat_id=supervisor_chat_id,
+                            specialties=["retail", "general"],
+                            priority_threshold=1
+                        )
+                        
+                        # Initialize omnichannel interface
+                        omnichannel = OmnichannelInterface(
+                            brain=brain,
+                            auditor=auditor,
+                            supervisor=supervisor,
+                            event_bus=event_bus,
+                            telegram_service=telegram
+                        )
+                        
+                        # Register user channel mapping
+                        await omnichannel.register_user_channel(
+                            email=user.email,
+                            channel=ChannelType.TELEGRAM,
+                            channel_user_id=str(user_id),
+                            metadata={"chat_id": str(chat_id)}
+                        )
+                        
+                        # Process message via omnichannel interface (100% AI via Bedrock)
+                        result = await omnichannel.process_message(
+                            channel=ChannelType.TELEGRAM,
+                            channel_user_id=str(user_id),
+                            message_text=text,
+                            message_id=str(message.get("message_id", "unknown")),
+                            metadata={"chat_id": str(chat_id)}
+                        )
+                        
+                        if result["success"]:
+                            response_text = result["response"]
+                            logger.info(f"Brain processed message successfully in {result.get('processing_time_seconds', 0):.2f}s")
+                        else:
+                            response_text = result["response"]
+                            logger.warning(f"Brain processing failed: {result.get('reason', 'unknown')}")
+                        
+                        # Ensure response_text is not None/null
+                        if not response_text or response_text == "null":
+                            response_text = "❌ Ocorreu um erro silencioso no processamento. Tente novamente."
+                            
+                    except Exception as brain_error:
+                        logger.error(f"Error processing via Brain: {str(brain_error)}", exc_info=True)
+                        response_text = (
+                            "❌ Erro ao processar sua mensagem.\n\n"
+                            "🔧 Tente novamente em alguns segundos."
+                        )
         
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}", exc_info=True)
