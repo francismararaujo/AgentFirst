@@ -22,8 +22,9 @@ import logging
 import json
 import hashlib
 import hmac
+from app.config.settings import settings
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, asdict
 from enum import Enum
 import boto3
@@ -119,7 +120,7 @@ class AuditEntry:
         # Criar string determinística para hash
         hash_data = {
             'audit_id': self.audit_id,
-            'timestamp': self.timestamp,
+            'timestamp': str(self.timestamp),
             'user_email': self.user_email,
             'agent': self.agent,
             'action': self.action,
@@ -202,7 +203,7 @@ class Auditor:
     - Relatórios de auditoria
     """
     
-    def __init__(self, table_name: str = "AgentFirst-AuditLogs", region: str = "us-east-1"):
+    def __init__(self, table_name: Optional[str] = None, region: Optional[str] = None):
         """
         Inicializa auditor
         
@@ -210,10 +211,10 @@ class Auditor:
             table_name: Nome da tabela DynamoDB
             region: Região AWS
         """
-        self.table_name = table_name
-        self.region = region
-        self.dynamodb = boto3.resource('dynamodb', region_name=region)
-        self.table = self.dynamodb.Table(table_name)
+        self.table_name = table_name or settings.DYNAMODB_AUDIT_TABLE
+        self.region = region or settings.AWS_REGION
+        self.dynamodb = boto3.resource('dynamodb', region_name=self.region)
+        self.table = self.dynamodb.Table(self.table_name)
         
         # Configurações de compliance
         self.retention_days = 365  # 1 ano (LGPD requirement)
@@ -271,9 +272,9 @@ class Auditor:
             audit_id = self._generate_audit_id()
             
             # Timestamp preciso com timezone
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             timestamp = now.isoformat() + 'Z'
-            timezone = 'UTC'
+            tz_name = 'UTC'
             
             # Detectar dados sensíveis
             sensitive_data = self._detect_sensitive_data(input_data, output_data)
@@ -284,7 +285,7 @@ class Auditor:
             audit_entry = AuditEntry(
                 audit_id=audit_id,
                 timestamp=timestamp,
-                timezone=timezone,
+                timezone=tz_name,
                 user_email=email,
                 user_id=None,  # Pode ser expandido
                 session_id=session_id,
@@ -320,7 +321,7 @@ class Auditor:
             logger.info(json.dumps({
                 'event': 'audit_log_created',
                 'audit_id': audit_id,
-                'user_email': email,
+            'user_email': email,
                 'agent': agent,
                 'action': action,
                 'category': category.value,
@@ -443,6 +444,9 @@ class Auditor:
             audit_entry: Entrada de auditoria
         """
         try:
+            # Helper to convert floats to Decimal for DynamoDB
+            from app.shared.decimal_utils import to_decimal
+
             # Preparar item para DynamoDB
             item = audit_entry.to_dict()
             
@@ -450,13 +454,19 @@ class Auditor:
             item['category'] = audit_entry.category.value
             item['level'] = audit_entry.level.value
             
+            # Converter floats para Decimal em TODO o item (incluindo duration_ms)
+            item = to_decimal(item)
+            
             # Adicionar TTL (1 ano)
-            ttl_timestamp = int((datetime.utcnow() + timedelta(days=self.retention_days)).timestamp())
+            ttl_timestamp = int((datetime.now(timezone.utc) + timedelta(days=self.retention_days)).timestamp())
             item['ttl'] = ttl_timestamp
             
             # Chaves para DynamoDB
             item['PK'] = audit_entry.user_email
             item['SK'] = f"AUDIT#{audit_entry.timestamp}#{audit_entry.audit_id}"
+            item['email'] = audit_entry.user_email  # Required by table schema
+            
+
             
             # Armazenar
             self.table.put_item(Item=item)
@@ -520,7 +530,7 @@ class Auditor:
             for item in response['Items']:
                 # Converter strings de volta para enums
                 item['category'] = AuditCategory(item['category'])
-                item['level'] = AuditLevel(item['level'])
+                item['level'] = AuditLevel(item['level'].upper())
                 
                 # Remover chaves DynamoDB
                 item.pop('PK', None)
@@ -617,7 +627,7 @@ class Auditor:
             # Gerar relatório
             report = ComplianceReport(
                 report_id=self._generate_audit_id(),
-                generated_at=datetime.utcnow(),
+                generated_at=datetime.now(timezone.utc),
                 period_start=start_date,
                 period_end=end_date,
                 user_email=user_email,

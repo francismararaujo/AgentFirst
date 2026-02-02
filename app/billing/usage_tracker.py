@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 import boto3
 from botocore.exceptions import ClientError
+from app.config.settings import settings
 
 
 @dataclass
@@ -58,8 +59,8 @@ class Usage:
 @dataclass
 class UsageTrackerConfig:
     """Configuration for usage tracker"""
-    region: str = "us-east-1"
-    usage_table: str = "usage"
+    region: str = settings.AWS_REGION
+    usage_table: str = settings.DYNAMODB_USAGE_TABLE
     email_index: str = "email-index"
 
 
@@ -104,7 +105,7 @@ class UsageTracker:
             response = self.table.get_item(
                 Key={
                     'email': email,
-                    'year_month': f"{year}#{month:02d}"
+                    'month': f"{year}#{month:02d}"
                 }
             )
 
@@ -127,7 +128,7 @@ class UsageTracker:
             )
 
             item = usage.to_dict()
-            item['year_month'] = f"{year}#{month:02d}"
+            item['month'] = f"{year}#{month:02d}"
             self.table.put_item(Item=item)
 
             return usage
@@ -145,7 +146,7 @@ class UsageTracker:
             response = self.table.get_item(
                 Key={
                     'email': email,
-                    'year_month': f"{year}#{month:02d}"
+                    'month': f"{year}#{month:02d}"
                 }
             )
 
@@ -180,7 +181,7 @@ class UsageTracker:
             self.table.update_item(
                 Key={
                     'email': email,
-                    'year_month': f"{year}#{month:02d}"
+                    'month': f"{year}#{month:02d}"
                 },
                 UpdateExpression='ADD message_count :inc SET updated_at = :updated',
                 ExpressionAttributeValues={
@@ -215,7 +216,7 @@ class UsageTracker:
             )
 
             item = usage.to_dict()
-            item['year_month'] = f"{year}#{month:02d}"
+            item['month'] = f"{year}#{month:02d}"
             self.table.put_item(Item=item)
 
             return usage
@@ -229,116 +230,7 @@ class UsageTracker:
 
         usage = await self.get_usage(email)
         return usage.message_count if usage else 0
-
-    async def get_usage_percentage(self, email: str, tier: str) -> float:
-        """Get usage as percentage of tier limit"""
-        if not email or '@' not in email:
-            raise ValueError("Invalid email format")
-
-        if tier not in ["free", "pro", "enterprise"]:
-            raise ValueError("Invalid tier")
-
-        limits = {
-            'free': 100,
-            'pro': 10000,
-            'enterprise': float('inf')
-        }
-
-        limit = limits[tier]
-        if limit == float('inf'):
-            return 0.0
-
-        count = await self.get_usage_count(email)
-        return (count / limit) * 100
-
-    async def get_remaining_messages(self, email: str, tier: str) -> int:
-        """Get remaining messages for tier"""
-        if not email or '@' not in email:
-            raise ValueError("Invalid email format")
-
-        if tier not in ["free", "pro", "enterprise"]:
-            raise ValueError("Invalid tier")
-
-        limits = {
-            'free': 100,
-            'pro': 10000,
-            'enterprise': 999999999  # Enterprise has effectively unlimited messages
-        }
-
-        limit = limits[tier]
-        count = await self.get_usage_count(email)
-        remaining = limit - count
-        return max(0, remaining)
-
-    async def get_usage_history(self, email: str, months: int = 12) -> list:
-        """Get usage history for past N months"""
-        if not email or '@' not in email:
-            raise ValueError("Invalid email format")
-
-        if months < 1 or months > 24:
-            raise ValueError("Months must be between 1 and 24")
-
-        try:
-            # Query all usage records for email
-            response = self.table.query(
-                KeyConditionExpression='email = :email',
-                ExpressionAttributeValues={':email': email}
-            )
-
-            usage_list = []
-            for item in response.get('Items', []):
-                usage = Usage.from_dict(item)
-                usage_list.append(usage)
-
-            # Sort by year and month descending
-            usage_list.sort(key=lambda x: (x.year, x.month), reverse=True)
-
-            # Return only requested months
-            return usage_list[:months]
-        except ClientError as e:
-            raise ValueError(f"Failed to get usage history: {str(e)}")
-
-    async def get_total_usage(self, email: str) -> int:
-        """Get total messages across all months"""
-        if not email or '@' not in email:
-            raise ValueError("Invalid email format")
-
-        try:
-            # Query all usage records for email
-            response = self.table.query(
-                KeyConditionExpression='email = :email',
-                ExpressionAttributeValues={':email': email}
-            )
-
-            total = 0
-            for item in response.get('Items', []):
-                total += item.get('message_count', 0)
-
-            return total
-        except ClientError as e:
-            raise ValueError(f"Failed to get total usage: {str(e)}")
-
-    async def get_average_monthly_usage(self, email: str) -> float:
-        """Get average monthly usage"""
-        if not email or '@' not in email:
-            raise ValueError("Invalid email format")
-
-        try:
-            # Query all usage records for email
-            response = self.table.query(
-                KeyConditionExpression='email = :email',
-                ExpressionAttributeValues={':email': email}
-            )
-
-            items = response.get('Items', [])
-            if not items:
-                return 0.0
-
-            total = sum(item.get('message_count', 0) for item in items)
-            return total / len(items)
-        except ClientError as e:
-            raise ValueError(f"Failed to get average usage: {str(e)}")
-
+# ... (rest of file)
     async def delete_usage(self, email: str, year: int, month: int) -> bool:
         """Delete usage record for specific month"""
         if not email or '@' not in email:
@@ -351,7 +243,7 @@ class UsageTracker:
             response = self.table.delete_item(
                 Key={
                     'email': email,
-                    'year_month': f"{year}#{month:02d}"
+                    'month': f"{year}#{month:02d}"
                 },
                 ReturnValues='ALL_OLD'
             )

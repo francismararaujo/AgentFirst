@@ -22,10 +22,11 @@ import json
 import asyncio
 from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 import boto3
 from botocore.exceptions import ClientError
+from app.config.settings import settings
 
 from app.core.auditor import Auditor, AuditCategory, AuditLevel
 
@@ -97,7 +98,7 @@ class EscalationRequest:
     
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = datetime.utcnow()
+            self.created_at = datetime.now(timezone.utc)
         if self.timeout_at is None:
             # Timeout padrão: 30 minutos
             self.timeout_at = self.created_at + timedelta(minutes=30)
@@ -119,7 +120,7 @@ class EscalationRequest:
     
     def is_expired(self) -> bool:
         """Verifica se a escalação expirou"""
-        return datetime.utcnow() > self.timeout_at
+        return datetime.now(timezone.utc) > self.timeout_at
     
     def get_priority_emoji(self) -> str:
         """Retorna emoji baseado na prioridade"""
@@ -151,7 +152,7 @@ class DecisionPattern:
     
     def __post_init__(self):
         if self.last_seen is None:
-            self.last_seen = datetime.utcnow()
+            self.last_seen = datetime.now(timezone.utc)
 
 
 class Supervisor:
@@ -167,7 +168,7 @@ class Supervisor:
     
     def __init__(
         self,
-        table_name: str = "AgentFirst-Escalation",
+        table_name: Optional[str] = None,
         region: str = "us-east-1",
         auditor: Optional[Auditor] = None,
         telegram_service=None
@@ -181,14 +182,14 @@ class Supervisor:
             auditor: Serviço de auditoria
             telegram_service: Serviço do Telegram para notificações
         """
-        self.table_name = table_name
-        self.region = region
+        self.table_name = table_name or settings.DYNAMODB_ESCALATION_TABLE
+        self.region = region or settings.AWS_REGION
         self.auditor = auditor or Auditor()
         self.telegram_service = telegram_service
         
         # DynamoDB
         self.dynamodb = boto3.resource('dynamodb', region_name=region)
-        self.table = self.dynamodb.Table(table_name)
+        self.table = self.dynamodb.Table(self.table_name)
         
         # Configurações
         self.default_timeout_minutes = 30
@@ -198,7 +199,7 @@ class Supervisor:
         # Cache de padrões
         self._decision_patterns = {}
         self._pattern_cache_ttl = 300  # 5 minutos
-        self._last_pattern_update = datetime.utcnow()
+        self._last_pattern_update = datetime.now(timezone.utc)
         
         # Supervisores configurados
         self.supervisors = {
@@ -382,7 +383,7 @@ class Supervisor:
             complexity_score += 1
         
         # 6. Horário fora do expediente
-        current_hour = datetime.utcnow().hour
+        current_hour = datetime.now(timezone.utc).hour
         if current_hour < 8 or current_hour > 18:  # Fora do horário comercial
             complexity_score += 1
         
@@ -680,7 +681,10 @@ class Supervisor:
     async def _store_escalation(self, escalation: EscalationRequest):
         """Armazena escalação no DynamoDB"""
         try:
-            item = escalation.to_dict()
+            # Helper to convert floats to Decimal
+            from app.shared.decimal_utils import to_decimal
+            
+            item = to_decimal(escalation.to_dict())
             
             # Chaves para DynamoDB
             item['PK'] = escalation.escalation_id
@@ -809,7 +813,7 @@ class Supervisor:
                 return False
             
             # Atualizar escalação
-            escalation.resolved_at = datetime.utcnow()
+            escalation.resolved_at = datetime.now(timezone.utc)
             escalation.human_feedback = feedback
             escalation.supervisor_id = supervisor_id or escalation.supervisor_id
             
@@ -921,7 +925,7 @@ class Supervisor:
                         pattern.occurrences
                     )
                 
-                pattern.last_seen = datetime.utcnow()
+                pattern.last_seen = datetime.now(timezone.utc)
             else:
                 # Criar novo padrão
                 pattern = DecisionPattern(
@@ -965,8 +969,8 @@ class Supervisor:
             features["user_tier"] = profile.get("tier", "unknown")
         
         # Features temporais
-        features["hour_of_day"] = datetime.utcnow().hour
-        features["day_of_week"] = datetime.utcnow().weekday()
+        features["hour_of_day"] = datetime.now(timezone.utc).hour
+        features["day_of_week"] = datetime.now(timezone.utc).weekday()
         
         # Features de erro
         features["has_error"] = context.get("has_error", False)
@@ -986,7 +990,7 @@ class Supervisor:
     
     async def _update_pattern_cache(self):
         """Atualiza cache de padrões se necessário"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if (now - self._last_pattern_update).total_seconds() > self._pattern_cache_ttl:
             # Em uma implementação real, carregaria padrões do DynamoDB
             # Por enquanto, mantém em memória

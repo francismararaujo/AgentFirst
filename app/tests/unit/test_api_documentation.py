@@ -40,8 +40,8 @@ class TestAPIDocumentation:
         spec_path = "app/docs/openapi.yaml"
         assert os.path.exists(spec_path), "OpenAPI spec file should exist"
         
-        # Test YAML parsing
-        with open(spec_path, 'r') as f:
+        # Test YAML parsing with UTF-8 encoding
+        with open(spec_path, 'r', encoding='utf-8') as f:
             spec_data = yaml.safe_load(f)
         
         # Validate basic OpenAPI structure
@@ -63,7 +63,7 @@ class TestAPIDocumentation:
         import os
         
         spec_path = "app/docs/openapi.yaml"
-        with open(spec_path, 'r') as f:
+        with open(spec_path, 'r', encoding='utf-8') as f:
             spec_data = yaml.safe_load(f)
         
         paths = spec_data['paths']
@@ -91,7 +91,7 @@ class TestAPIDocumentation:
         import os
         
         spec_path = "app/docs/openapi.yaml"
-        with open(spec_path, 'r') as f:
+        with open(spec_path, 'r', encoding='utf-8') as f:
             spec_data = yaml.safe_load(f)
         
         components = spec_data['components']
@@ -344,7 +344,7 @@ class TestAPIExamples:
         assert os.path.exists(examples_path), "API examples file should exist"
         
         # Parse the file to check structure
-        with open(examples_path, 'r') as f:
+        with open(examples_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Check that file is valid Python

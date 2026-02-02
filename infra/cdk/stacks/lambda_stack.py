@@ -79,6 +79,8 @@ class LambdaStack(Stack):
             self.core_stack.usage_table,
             self.core_stack.audit_logs_table,
             self.core_stack.escalation_table,
+            self.core_stack.otp_table,
+            self.core_stack.merchants_table,
         ]:
             table.grant_read_write_data(lambda_role)
 
@@ -113,7 +115,19 @@ class LambdaStack(Stack):
                     "bedrock:InvokeModel",
                     "bedrock:InvokeModelWithResponseStream",
                 ],
-                resources=["arn:aws:bedrock:*:*:foundation-model/*"],
+                resources=[
+                    "arn:aws:bedrock:*:*:foundation-model/*",
+                    "arn:aws:bedrock:*:*:inference-profile/*"
+                ],
+            )
+        )
+
+        # Add SES send email access
+        lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["ses:SendEmail"],
+                resources=["*"],
             )
         )
 
@@ -142,10 +156,17 @@ class LambdaStack(Stack):
                 "DYNAMODB_USAGE_TABLE": self.core_stack.usage_table.table_name,
                 "DYNAMODB_AUDIT_TABLE": self.core_stack.audit_logs_table.table_name,
                 "DYNAMODB_ESCALATION_TABLE": self.core_stack.escalation_table.table_name,
+                "DYNAMODB_OTP_TABLE": self.core_stack.otp_table.table_name,
+                "DYNAMODB_MERCHANTS_TABLE": self.core_stack.merchants_table.table_name,
                 "SNS_OMNICHANNEL_TOPIC_ARN": self.core_stack.omnichannel_topic.topic_arn,
                 "SNS_RETAIL_TOPIC_ARN": self.core_stack.retail_topic.topic_arn,
                 "SQS_QUEUE_URL": self.core_stack.queue.queue_url,
                 "SQS_DLQ_URL": self.core_stack.dlq.queue_url,
+                "TELEGRAM_BOT_TOKEN": os.getenv("TELEGRAM_BOT_TOKEN", ""),
+                "TELEGRAM_WEBHOOK_URL": os.getenv("TELEGRAM_WEBHOOK_URL", ""),
+                "IFOOD_CLIENT_ID": os.getenv("IFOOD_CLIENT_ID", ""),
+                "IFOOD_CLIENT_SECRET": os.getenv("IFOOD_CLIENT_SECRET", ""),
+                "SENDER_EMAIL": os.getenv("SENDER_EMAIL", "naoresponder@agentfirst.com.br"),
             },
             role=lambda_role,
             tracing=lambda_.Tracing.ACTIVE,

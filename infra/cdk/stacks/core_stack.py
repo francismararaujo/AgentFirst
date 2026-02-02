@@ -44,6 +44,8 @@ class CoreStack(Stack):
         self.usage_table = self._create_usage_table()
         self.audit_logs_table = self._create_audit_logs_table()
         self.escalation_table = self._create_escalation_table()
+        self.otp_table = self._create_otp_table()
+        self.merchants_table = self._create_merchants_table()
 
         # Create SNS topics
         self.omnichannel_topic = self._create_omnichannel_topic()
@@ -240,6 +242,75 @@ class CoreStack(Stack):
 
         return table
 
+    def _create_otp_table(self) -> dynamodb.Table:
+        """Create OTP DynamoDB table"""
+        table = dynamodb.Table(
+            self,
+            "OTPTable",
+            partition_key=dynamodb.Attribute(
+                name="email",
+                type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
+            encryption_key=self.kms_key,
+            time_to_live_attribute="expires_at",
+            removal_policy=RemovalPolicy.RETAIN,
+            table_name=f"agentfirst-otp-{self.environment_name}",
+        )
+        return table
+
+    def _create_merchants_table(self) -> dynamodb.Table:
+        """Create Merchants DynamoDB table for multi-tenant iFood integration"""
+        table = dynamodb.Table(
+            self,
+            "MerchantsTable",
+            partition_key=dynamodb.Attribute(
+                name="merchant_id",
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="user_email",
+                type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
+            encryption_key=self.kms_key,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.RETAIN,
+            table_name=f"agentfirst-merchants-{self.environment_name}",
+        )
+
+        # GSI for querying active merchants (used by polling service)
+        table.add_global_secondary_index(
+            index_name="status-index",
+            partition_key=dynamodb.Attribute(
+                name="status",
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="created_at",
+                type=dynamodb.AttributeType.NUMBER
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # GSI for querying merchants by user email
+        table.add_global_secondary_index(
+            index_name="user-email-index",
+            partition_key=dynamodb.Attribute(
+                name="user_email",
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="created_at",
+                type=dynamodb.AttributeType.NUMBER
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        return table
+
     def _create_omnichannel_topic(self) -> sns.Topic:
         """Create SNS topic for omnichannel events"""
         topic = sns.Topic(
@@ -333,6 +404,13 @@ class CoreStack(Stack):
             "EscalationTableName",
             value=self.escalation_table.table_name,
             export_name=f"agentfirst-escalation-table-{self.environment_name}",
+        )
+
+        CfnOutput(
+            self,
+            "OTPTableName",
+            value=self.otp_table.table_name,
+            export_name=f"agentfirst-otp-table-{self.environment_name}",
         )
 
         CfnOutput(

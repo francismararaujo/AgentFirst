@@ -678,7 +678,7 @@ class TestComplianceReport:
         """Test ComplianceReport creation"""
         report = ComplianceReport(
             report_id="report_123",
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             period_start=datetime(2025, 1, 1),
             period_end=datetime(2025, 1, 31),
             user_email="test@example.com",
@@ -712,7 +712,7 @@ class TestComplianceReport:
         """Test ComplianceReport serialization"""
         report = ComplianceReport(
             report_id="report_123",
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             period_start=datetime(2025, 1, 1),
             period_end=datetime(2025, 1, 31),
             user_email="test@example.com",

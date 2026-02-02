@@ -5,6 +5,7 @@ Tests intent classification, context management, and agent routing.
 """
 
 import pytest
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 from hypothesis import given, strategies as st
 
@@ -19,7 +20,8 @@ class TestBrain:
     @pytest.fixture
     def mock_bedrock(self):
         """Mock Bedrock client"""
-        return AsyncMock()
+        mock = MagicMock()  # Use MagicMock instead of AsyncMock
+        return mock
     
     @pytest.fixture
     def mock_memory(self):
@@ -115,12 +117,19 @@ class TestBrain:
         """Test successful intent classification"""
         # Arrange
         message = "Quantos pedidos tenho?"
-        mock_bedrock.invoke_model.return_value = {
+        
+        # Mock the response body
+        mock_body = MagicMock()
+        mock_body.read.return_value = json.dumps({
             'content': [
                 {
                     'text': '{"domain": "retail", "action": "check_orders", "connector": "ifood", "confidence": 0.95, "entities": {}}'
                 }
             ]
+        }).encode('utf-8')
+        
+        mock_bedrock.invoke_model.return_value = {
+            'body': mock_body
         }
         
         # Act
@@ -144,12 +153,18 @@ class TestBrain:
             session_id="session_123"
         )
         
-        mock_bedrock.invoke_model.return_value = {
+        # Mock the response body
+        mock_body = MagicMock()
+        mock_body.read.return_value = json.dumps({
             'content': [
                 {
                     'text': 'Você tem 1 pedido no iFood'
                 }
             ]
+        }).encode('utf-8')
+        
+        mock_bedrock.invoke_model.return_value = {
+            'body': mock_body
         }
         
         # Act
@@ -167,23 +182,29 @@ class TestBrain:
         mock_agent.execute.return_value = {"orders": []}
         brain.register_agent("retail", mock_agent)
         
+        # Mock classification response
+        mock_body_1 = MagicMock()
+        mock_body_1.read.return_value = json.dumps({
+            'content': [
+                {
+                    'text': '{"domain": "retail", "action": "check_orders", "connector": "ifood", "confidence": 0.95, "entities": {}}'
+                }
+            ]
+        }).encode('utf-8')
+        
+        # Mock formatting response
+        mock_body_2 = MagicMock()
+        mock_body_2.read.return_value = json.dumps({
+            'content': [
+                {
+                    'text': 'Você tem 0 pedidos'
+                }
+            ]
+        }).encode('utf-8')
+        
         mock_bedrock.invoke_model.side_effect = [
-            # Classification response
-            {
-                'content': [
-                    {
-                        'text': '{"domain": "retail", "action": "check_orders", "connector": "ifood", "confidence": 0.95, "entities": {}}'
-                    }
-                ]
-            },
-            # Formatting response
-            {
-                'content': [
-                    {
-                        'text': 'Você tem 0 pedidos'
-                    }
-                ]
-            }
+            {'body': mock_body_1},
+            {'body': mock_body_2}
         ]
         
         mock_memory.get_context.return_value = {}
@@ -232,23 +253,29 @@ class TestBrain:
         mock_agent.execute.return_value = {"status": "received"}
         brain.register_agent("retail", mock_agent)
         
+        # Mock classification response
+        mock_body_1 = MagicMock()
+        mock_body_1.read.return_value = json.dumps({
+            'content': [
+                {
+                    'text': '{"domain": "retail", "action": "new_order", "confidence": 0.95, "entities": {}}'
+                }
+            ]
+        }).encode('utf-8')
+        
+        # Mock formatting response
+        mock_body_2 = MagicMock()
+        mock_body_2.read.return_value = json.dumps({
+            'content': [
+                {
+                    'text': 'Novo pedido recebido'
+                }
+            ]
+        }).encode('utf-8')
+        
         mock_bedrock.invoke_model.side_effect = [
-            # Classification
-            {
-                'content': [
-                    {
-                        'text': '{"domain": "retail", "action": "new_order", "confidence": 0.95, "entities": {}}'
-                    }
-                ]
-            },
-            # Formatting
-            {
-                'content': [
-                    {
-                        'text': 'Novo pedido recebido'
-                    }
-                ]
-            }
+            {'body': mock_body_1},
+            {'body': mock_body_2}
         ]
         
         mock_memory.get_context.return_value = {}

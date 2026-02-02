@@ -27,6 +27,7 @@ if os.path.exists(local_lambda_deps) and local_lambda_deps not in sys.path:
     sys.path.insert(0, local_lambda_deps)
 
 from mangum import Mangum
+handler = Mangum(app, lifespan="off")
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
 from aws_xray_sdk.core.context import Context as XRayContext

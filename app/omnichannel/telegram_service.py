@@ -28,8 +28,20 @@ class TelegramService:
         if bot_token:
             self.bot_token = bot_token
         else:
-            # Hardcode temporário para testar
-            self.bot_token = "8164221464:AAGTNth9jfLRFA60fuf9GicBtc9CaTuMXiU"
+            from app.config.settings import settings
+            self.bot_token = settings.TELEGRAM_BOT_TOKEN
+            
+            if not self.bot_token:
+                 logger.info("Telegram Bot Token not found in settings, attempting to fetch from Secrets Manager...")
+                 try:
+                     self.bot_token = SecretsManager().get_telegram_token()
+                     if self.bot_token:
+                         logger.info("Successfully retrieved Telegram Bot Token from Secrets Manager")
+                 except Exception as e:
+                     logger.warning(f"Failed to fetch token from Secrets Manager: {e}")
+
+            if not self.bot_token:
+                 logger.warning("Telegram Bot Token not available. Service may fail to send messages.")
 
         self.api_url = f"https://api.telegram.org/bot{self.bot_token}"
 
@@ -54,7 +66,7 @@ class TelegramService:
         """
         try:
             payload = {
-                "chat_id": chat_id,
+                "chat_id": int(chat_id),
                 "text": text,
                 "parse_mode": parse_mode,
             }

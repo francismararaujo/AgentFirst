@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
+from app.config.settings import settings
 from app.billing.usage_tracker import UsageTracker, UsageTrackerConfig
 
 
@@ -36,8 +37,8 @@ class LimitExceededError(Exception):
 @dataclass
 class LimitEnforcerConfig:
     """Configuration for limit enforcer"""
-    region: str = "us-east-1"
-    usage_table: str = "usage"
+    region: str = settings.AWS_REGION
+    usage_table: str = settings.DYNAMODB_USAGE_TABLE
     upgrade_url_template: str = "https://agentfirst.app/upgrade?email={email}&tier={tier}"
 
 

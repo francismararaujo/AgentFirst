@@ -103,15 +103,21 @@ class iFoodConnector(BaseConnector):
     # Rate limiting
     MAX_REQUESTS_PER_MINUTE = 60
     
-    def __init__(self, secrets_manager: SecretsManager):
+    def __init__(self, secrets_manager: SecretsManager, merchant_id: str):
         """
         Inicializa conector iFood
         
         Args:
             secrets_manager: Gerenciador de secrets
+            merchant_id: ID da loja do cliente (fornecido no onboarding)
+            
+        Note:
+            Usa credenciais centralizadas do AgentFirst (Secrets Manager).
+            Apenas o merchant_id é específico por cliente.
         """
         super().__init__('ifood')
         self.secrets_manager = secrets_manager
+        self.merchant_id = merchant_id  # Dynamic per customer
         self.credentials: Optional[iFoodCredentials] = None
         self.token: Optional[iFoodToken] = None
         
@@ -147,17 +153,21 @@ class iFoodConnector(BaseConnector):
     
     async def _load_credentials(self) -> iFoodCredentials:
         """
-        Carrega credenciais do Secrets Manager
+        Carrega credenciais centralizadas do Secrets Manager
         
         Returns:
-            Credenciais do iFood
+            Credenciais do iFood (centralizadas) + merchant_id dinâmico
+            
+        Note:
+            Credenciais (client_id, client_secret, webhook_secret) são as mesmas
+            para todos os clientes. Apenas merchant_id é específico por cliente.
         """
         if self.credentials is None:
-            secret = await self.secrets_manager.get_secret("AgentFirst/ifood-credentials")
+            secret = self.secrets_manager.get_secret("AgentFirst/ifood-credentials")
             self.credentials = iFoodCredentials(
                 client_id=secret['client_id'],
                 client_secret=secret['client_secret'],
-                merchant_id=secret['merchant_id'],
+                merchant_id=self.merchant_id,  # Dynamic per customer
                 webhook_secret=secret['webhook_secret']
             )
         return self.credentials
@@ -264,6 +274,8 @@ class iFoodConnector(BaseConnector):
                     logger.error(f"iFood API error {response.status}: {error_text}")
                     raise Exception(f"iFood API error {response.status}: {error_text}")
                 
+                if response.status in [202, 204]:
+                    return {}
                 return await response.json()
                 
         except asyncio.TimeoutError:
@@ -311,7 +323,8 @@ class iFoodConnector(BaseConnector):
             
             async with session.post(
                 self.AUTH_URL,
-                json=auth_data,
+                data=auth_data,
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 if response.status != 200:
@@ -360,7 +373,8 @@ class iFoodConnector(BaseConnector):
             
             async with session.post(
                 self.AUTH_URL,
-                json=refresh_data,
+                data=refresh_data,
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 if response.status != 200:
@@ -414,7 +428,7 @@ class iFoodConnector(BaseConnector):
         try:
             response = await self._make_request(
                 'GET',
-                f'/order/v1.0/merchants/{credentials.merchant_id}/status',
+                f'/merchant/v1.0/merchants/{credentials.merchant_id}/status',
                 timeout=self.POLLING_TIMEOUT
             )
             
@@ -506,12 +520,18 @@ class iFoodConnector(BaseConnector):
                 logger.warning(f"Polling exceeded SLA: {elapsed:.2f}s > {self.POLLING_TIMEOUT}s")
             
             events = []
-            for event_data in response.get('events', []):
+            # Handle different response formats (List or Dict)
+            if isinstance(response, list):
+                event_list = response
+            else:
+                event_list = response.get('events', [])
+
+            for event_data in event_list:
                 # Filter by merchant (homologation requirement)
                 if event_data.get('merchantId') == credentials.merchant_id:
                     event = iFoodEvent(
                         id=event_data['id'],
-                        type=event_data['type'],
+                        type=event_data.get('fullCode', event_data.get('code', 'UNKNOWN')), # Fix: API uses code/fullCode
                         order_id=event_data.get('orderId'),
                         merchant_id=event_data['merchantId'],
                         timestamp=event_data['createdAt'],
@@ -687,6 +707,30 @@ class iFoodConnector(BaseConnector):
                 'order_id': order_id
             }
     
+    async def get_cancellation_reasons(self, order_id: str) -> List[Dict[str, Any]]:
+        """
+        Consulta motivos de cancelamento disponíveis para o pedido
+        
+        Args:
+            order_id: ID do pedido
+            
+        Returns:
+            Lista de motivos
+        """
+        if not await self.authenticate():
+            raise Exception("Authentication failed")
+            
+        try:
+            response = await self._make_request(
+                'GET',
+                f'/order/v1.0/orders/{order_id}/cancellationReasons'
+            )
+            return response or []
+            
+        except Exception as e:
+            logger.error(f"Error getting cancellation reasons for {order_id}: {str(e)}")
+            return []
+
     async def cancel_order(self, order_id: str, reason: str) -> Dict[str, Any]:
         """
         Cancela pedido no iFood
@@ -716,8 +760,6 @@ class iFoodConnector(BaseConnector):
             return {
                 'success': True,
                 'order_id': order_id,
-                'reason': reason,
-                'cancelled_at': datetime.now().isoformat()
             }
             
         except Exception as e:
@@ -727,7 +769,211 @@ class iFoodConnector(BaseConnector):
                 'error': str(e),
                 'order_id': order_id
             }
+
+    async def dispatch_order(self, order_id: str) -> Dict[str, Any]:
+        """
+        Despacha pedido no iFood (Muda status para DISPATCHED)
+        
+        Args:
+            order_id: ID do pedido
+            
+        Returns:
+            Resultado do despacho
+        """
+        if not await self.authenticate():
+            raise Exception("Authentication failed")
+            
+        try:
+            response = await self._make_request(
+                'POST',
+                f'/order/v1.0/orders/{order_id}/dispatch',
+                timeout=self.CONFIRMATION_TIMEOUT
+            )
+            
+            logger.info(f"Order {order_id} dispatched successfully")
+            return {
+                'success': True,
+                'order_id': order_id,
+                'status': 'DISPATCHED',
+                'dispatched_at': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error dispatching order {order_id}: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'order_id': order_id
+            }
+
+    async def start_preparation(self, order_id: str) -> Dict[str, Any]:
+        """
+        Inicia preparação do pedido
+        Args:
+            order_id: ID do pedido
+        Returns:
+            Resultado da operação
+        """
+        if not await self.authenticate():
+            raise Exception("Authentication failed")
+        
+        credentials = await self._load_credentials()
+        try:
+            response = await self._make_request(
+                'POST',
+                f'/order/v1.0/orders/{order_id}/startPreparation'
+            )
+            logger.info(f"Order {order_id} started preparation")
+            return {'success': True, 'order_id': order_id, 'status': 'PREPARATION'}
+        except Exception as e:
+            logger.error(f"Error starting preparation for {order_id}: {str(e)}")
+            return {'success': False, 'error': str(e)}
+
+    async def ready_to_pickup(self, order_id: str) -> Dict[str, Any]:
+        """
+        Marca pedido como pronto para retirada (ou despacho)
+        Args:
+            order_id: ID do pedido
+        Returns:
+            Resultado da operação
+        """
+        if not await self.authenticate():
+            raise Exception("Authentication failed")
+            
+        credentials = await self._load_credentials()
+        try:
+            response = await self._make_request(
+                'POST',
+                f'/order/v1.0/orders/{order_id}/readyToPickup'
+            )
+            logger.info(f"Order {order_id} ready to pickup")
+            return {'success': True, 'order_id': order_id, 'status': 'READY_TO_PICKUP'}
+        except Exception as e:
+            logger.error(f"Error marking ready to pickup for {order_id}: {str(e)}")
+            return {'success': False, 'error': str(e)}
+
+    async def list_interruptions(self) -> List[Dict[str, Any]]:
+        """
+        Lista interrupções ativas (Loja Fechada)
+        
+        Returns:
+            Lista de interrupções
+        """
+        if not await self.authenticate():
+            raise Exception("Authentication failed")
+            
+        credentials = await self._load_credentials()
+        
+        try:
+            response = await self._make_request(
+                'GET',
+                f'/merchant/v1.0/merchants/{credentials.merchant_id}/interruptions'
+            )
+            return response or []
+            
+        except Exception as e:
+            logger.error(f"Error listing interruptions: {str(e)}")
+            return []
+
+    async def close_store(self, reason: str = "Fechado pelo gestor", duration_minutes: int = 60) -> Dict[str, Any]:
+        """
+        Fecha a loja temporariamente (Cria interrupção)
+        
+        Args:
+            reason: Motivo do fechamento
+            duration_minutes: Duração em minutos (max 24h/1440min)
+            
+        Returns:
+            Resultado da operação
+        """
+        if not await self.authenticate():
+            raise Exception("Authentication failed")
+            
+        credentials = await self._load_credentials()
+        
+        # Calculate start and end times
+        start = datetime.now()
+        end = start + timedelta(minutes=duration_minutes)
+        
+        # Format as ISO 8601 string required by iFood
+        start_str = start.strftime("%Y-%m-%dT%H:%M:%S")
+        end_str = end.strftime("%Y-%m-%dT%H:%M:%S")
+        
+        data = {
+            "start": start_str,
+            "end": end_str,
+            "description": reason
+        }
+        
+        try:
+            response = await self._make_request(
+                'POST',
+                f'/merchant/v1.0/merchants/{credentials.merchant_id}/interruptions',
+                data=data
+            )
+            
+            logger.info(f"Store closed successfully until {end_str}")
+            return {
+                'success': True,
+                'status': 'CLOSED',
+                'interruption': response
+            }
+            
+        except Exception as e:
+            logger.error(f"Error closing store: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    async def open_store(self, interruption_id: str = None) -> Dict[str, Any]:
+        """
+        Abre a loja (Remove interrupção)
+        Se interruption_id não for informado, remove a última ativa
+        
+        Args:
+            interruption_id: ID da interrupção (opcional)
+            
+        Returns:
+            Resultado da operação
+        """
+        credentials = await self._load_credentials()
+        
+        try:
+            # If no ID provided, get list and remove the first active one
+            if not interruption_id:
+                interruptions = await self.list_interruptions()
+                if not interruptions:
+                    return {
+                        'success': True,
+                        'message': 'Store is already open (no active interruptions)'
+                    }
+                # Use the ID of the first interruption found
+                interruption_id = interruptions[0].get('id')
+                
+            if not interruption_id:
+                return {'success': False, 'error': 'No interruption ID found'}
+
+            await self._make_request(
+                'DELETE',
+                f'/merchant/v1.0/merchants/{credentials.merchant_id}/interruptions/{interruption_id}'
+            )
+            
+            logger.info(f"Store opened successfully (removed interruption {interruption_id})")
+            return {
+                'success': True,
+                'status': 'OPEN',
+                'removed_interruption_id': interruption_id
+            }
+            
+        except Exception as e:
+            logger.error(f"Error opening store: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
     
+
     # Placeholder implementations for base class methods
     async def get_revenue(self, period: str = 'today') -> Revenue:
         """Placeholder - será implementado com critérios completos"""

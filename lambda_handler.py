@@ -1,9 +1,10 @@
 """Lambda handler entry point for AgentFirst2 MVP
 
 This module serves as the entry point for AWS Lambda.
-It imports and delegates to the main handler in app/lambda_handler.py
+It imports and delegates to the main handler in app/main.py
 """
 
+import sys
 import asyncio
 import json
 import logging
@@ -19,8 +20,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     This function handles both sync and async operations by:
     1. Importing the main handler from app/
-    2. Checking if the result is a coroutine
-    3. Running async operations in event loop if needed
+    2. Using Mangum to bridge API Gateway events to FastAPI
     
     Args:
         event: Lambda event
@@ -35,14 +35,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         from mangum import Mangum
         
         # Create Mangum handler
+        # lifespan="off" to allow faster cold starts and avoid some async issues
         handler = Mangum(app, lifespan="off")
         
         # Call handler
         result = handler(event, context)
         
-        # Check if result is a coroutine (async function)
+        # Check if result is a coroutine (async function) - generic safety
         if asyncio.iscoroutine(result):
-            # Run async operation
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
@@ -50,17 +50,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             finally:
                 loop.close()
         
-        logger.info(f"Lambda execution completed successfully")
         return result
         
     except Exception as e:
-        logger.error(f"Error in lambda_handler: {str(e)}", exc_info=True)
-        
+        # Fallback error handling
+        print(f"CRITICAL ERROR in lambda_handler: {e}", flush=True)
         return {
             "statusCode": 500,
             "body": json.dumps({
                 "error": "Internal server error",
-                "message": str(e)
+                "message": "An unexpected error occurred."
             }),
             "headers": {"Content-Type": "application/json"}
         }

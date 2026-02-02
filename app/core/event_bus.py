@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional, List
 from datetime import datetime, timezone
 import boto3
 from botocore.exceptions import ClientError
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class EventBusConfig:
 
     def __init__(
         self,
-        region: str = "us-east-1",
+        region: str = None,
         sns_topic_arn: Optional[str] = None,
         sqs_queue_url: Optional[str] = None,
         sqs_dlq_url: Optional[str] = None,
@@ -33,7 +34,7 @@ class EventBusConfig:
         visibility_timeout_seconds: int = 300,  # 5 minutes
         dlq_retention_seconds: int = 1209600,  # 14 days
     ):
-        self.region = region
+        self.region = region or settings.AWS_REGION
         self.sns_topic_arn = sns_topic_arn
         self.sqs_queue_url = sqs_queue_url
         self.sqs_dlq_url = sqs_dlq_url

@@ -2,11 +2,14 @@
 
 import os
 from typing import Optional
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
+
+    model_config = ConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
@@ -24,6 +27,8 @@ class Settings(BaseSettings):
     DYNAMODB_USAGE_TABLE: str = os.getenv("DYNAMODB_USAGE_TABLE", "agentfirst-usage")
     DYNAMODB_AUDIT_TABLE: str = os.getenv("DYNAMODB_AUDIT_TABLE", "agentfirst-audit-logs")
     DYNAMODB_ESCALATION_TABLE: str = os.getenv("DYNAMODB_ESCALATION_TABLE", "agentfirst-escalation")
+    DYNAMODB_OTP_TABLE: str = os.getenv("DYNAMODB_OTP_TABLE", "agentfirst-otp")
+    DYNAMODB_MERCHANTS_TABLE: str = os.getenv("DYNAMODB_MERCHANTS_TABLE", "agentfirst-merchants")
 
     # SNS Configuration
     SNS_OMNICHANNEL_TOPIC_ARN: str = os.getenv("SNS_OMNICHANNEL_TOPIC_ARN", "")
@@ -34,8 +39,11 @@ class Settings(BaseSettings):
     SQS_DLQ_URL: str = os.getenv("SQS_DLQ_URL", "")
 
     # Bedrock Configuration
-    BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+    BEDROCK_MODEL_ID: str = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-sonnet-20241022-v2:0")
     BEDROCK_REGION: str = os.getenv("BEDROCK_REGION", "us-east-1")
+
+    # Email Configuration (SES)
+    SENDER_EMAIL: str = os.getenv("SENDER_EMAIL", "naoresponder@agentfirst.com.br")
 
     # Telegram Configuration
     TELEGRAM_BOT_TOKEN: Optional[str] = os.getenv("TELEGRAM_BOT_TOKEN", None)
@@ -78,10 +86,6 @@ class Settings(BaseSettings):
 
     # X-Ray Configuration
     XRAY_ENABLED: bool = ENVIRONMENT != "test"
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 # Global settings instance

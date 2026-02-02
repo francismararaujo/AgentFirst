@@ -95,8 +95,8 @@ class TestOmnichannelInterface:
             with patch.object(omnichannel_interface.user_repository, 'get_by_email') as mock_get_user:
                 mock_get_user.return_value = sample_user
                 
-                with patch.object(omnichannel_interface.usage_tracker, 'can_process_message') as mock_can_process:
-                    mock_can_process.return_value = True
+                with patch.object(omnichannel_interface.limit_enforcer, 'check_limit') as mock_check_limit:
+                    mock_check_limit.return_value = True
                     
                     with patch.object(omnichannel_interface.usage_tracker, 'increment_usage') as mock_increment:
                         mock_increment.return_value = None
@@ -137,11 +137,11 @@ class TestOmnichannelInterface:
                                 # Verify services were called
                                 mock_process.assert_called_once()
                                 mock_get_user.assert_called_once_with("test@example.com")
-                                mock_can_process.assert_called_once_with("test@example.com", "free")
+                                mock_check_limit.assert_called_once_with(email="test@example.com", tier="free")
                                 mock_increment.assert_called_once_with("test@example.com")
                                 omnichannel_interface.brain.process.assert_called_once()
                                 omnichannel_interface.auditor.log_transaction.assert_called()
-                                omnichannel_interface.event_bus.publish.assert_called_once()
+                                omnichannel_interface.event_bus.publish_event.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_process_message_usage_limit_exceeded(self, omnichannel_interface, sample_user):
@@ -163,8 +163,8 @@ class TestOmnichannelInterface:
             with patch.object(omnichannel_interface.user_repository, 'get_by_email') as mock_get_user:
                 mock_get_user.return_value = sample_user
                 
-                with patch.object(omnichannel_interface.usage_tracker, 'can_process_message') as mock_can_process:
-                    mock_can_process.return_value = False
+                with patch.object(omnichannel_interface.limit_enforcer, 'check_limit') as mock_check_limit:
+                    mock_check_limit.return_value = False
                     
                     with patch.object(omnichannel_interface.limit_enforcer, 'get_limit_status') as mock_limit_status:
                         mock_limit_status.return_value = {
@@ -260,7 +260,7 @@ class TestOmnichannelInterface:
                     
                     # Verify audit and event bus were called
                     omnichannel_interface.auditor.log_transaction.assert_called()
-                    omnichannel_interface.event_bus.publish.assert_called()
+                    omnichannel_interface.event_bus.publish_event.assert_called()
     
     @pytest.mark.asyncio
     async def test_register_user_channel(self, omnichannel_interface):
@@ -378,8 +378,8 @@ class TestOmnichannelInterface:
     @pytest.mark.asyncio
     async def test_get_user_channels(self, omnichannel_interface, sample_user):
         """Test getting user channels"""
-        with patch.object(omnichannel_interface.user_repository, 'get_by_email') as mock_get_user:
-            mock_get_user.return_value = sample_user
+        with patch.object(omnichannel_interface.channel_mapping, 'get_channels_for_email') as mock_get_channels:
+            mock_get_channels.return_value = {"telegram": "123456789"}
             
             channels = await omnichannel_interface._get_user_channels("test@example.com")
             

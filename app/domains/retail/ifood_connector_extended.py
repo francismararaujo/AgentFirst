@@ -106,25 +106,60 @@ class iFoodConnectorExtended(iFoodConnector):
         credentials = await self._load_credentials()
         
         try:
+            logger.info(f"Checking orders for merchant {credentials.merchant_id} status={status}")
             # Get orders from iFood API
             endpoint = f'/order/v1.0/merchants/{credentials.merchant_id}/orders'
             params = {}
             if status:
                 params['status'] = status
             
-            response = await self._make_request('GET', endpoint, timeout=self.POLLING_TIMEOUT)
-            
-            orders = []
-            for order_data in response.get('orders', []):
-                order = await self._parse_order(order_data)
-                orders.append(order)
-            
-            return orders
+            try:
+                response = await self._make_request('GET', endpoint, timeout=self.POLLING_TIMEOUT)
+                logger.info(f"iFood API Response: {response}")
+                
+                orders = []
+                for order_data in response.get('orders', []):
+                    try:
+                        order = await self._parse_order(order_data)
+                        orders.append(order)
+                    except Exception as parse_error:
+                       logger.error(f"Error parsing order {order_data.get('id')}: {parse_error}")
+
+                logger.info(f"Parsed {len(orders)} orders")
+                return orders
+            except Exception as req_error:
+                if "404" in str(req_error):
+                    logger.warning(f"iFood API 404 for list orders (Not Supported). Returning empty list.")
+                    return []
+                raise req_error
             
         except Exception as e:
-            logger.error(f"Error getting orders: {str(e)}")
-            raise
+            logger.error(f"Error getting orders: {str(e)}", exc_info=True)
+            # Return empty list to avoid crashing flow
+            return []
     
+    async def get_order_details(self, order_id: str) -> Dict[str, Any]:
+        """
+        Recupera detalhes completos do pedido (incluindo displayId)
+        
+        Args:
+            order_id: ID do pedido
+            
+        Returns:
+            Detalhes do pedido
+        """
+        if not await self.authenticate():
+            raise Exception("Authentication failed")
+        
+        try:
+            endpoint = f'/order/v1.0/orders/{order_id}'
+            response = await self._make_request('GET', endpoint)
+            return response
+        except Exception as e:
+            logger.error(f"Error getting order details {order_id}: {str(e)}")
+            # Fallback to empty if fails
+            return {"id": order_id, "error": str(e)}
+
     async def _parse_order(self, order_data: Dict[str, Any]) -> Order:
         """
         Parse order data with complete type support
@@ -198,6 +233,7 @@ class iFoodConnectorExtended(iFoodConnector):
         for payment_data in order_data.get('payments', []):
             payment = await self._parse_payment(payment_data)
             payments.append(payment)
+
         
         # Calculate total
         total = sum(item.total_price for item in items)

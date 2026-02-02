@@ -27,31 +27,25 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
       
-      - name: Build and Push Docker Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
         run: |
-          echo "🐳 Building Docker image..."
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          npm install -g aws-cdk
+          python -m pip install --upgrade pip
+          pip install -r infra/cdk/requirements.txt
           
-          echo "📦 Pushing to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          
-          echo "🚀 Updating Lambda function..."
-          aws lambda update-function-code \
-            --function-name agentfirst-production \
-            --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            --region $AWS_REGION
-          
-          echo "⏳ Waiting for function to update..."
-          aws lambda wait function-updated \
-            --function-name agentfirst-production \
-            --region $AWS_REGION
-          
-          echo "✅ Deploy completed!"
+      - name: CDK Deploy
+        env:
+          ENVIRONMENT: production
+        run: |
+          echo "🚀 Deploying Infrastructure & Code with CDK..."
+          cd infra/cdk
+          cdk bootstrap
+          cdk deploy --all --require-approval never
       
       - name: Test deployment
         run: |

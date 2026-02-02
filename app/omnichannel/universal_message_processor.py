@@ -73,9 +73,15 @@ class UniversalMessageProcessor:
             )
         
         # 2. Retrieve session
-        session = await self.session_manager.get(email)
+        session = await self.session_manager.get_session_by_email(email)
         if not session:
-            raise ValueError(f"No session found for email {email}")
+            # Create new session if not found
+            session = await self.session_manager.create_session(
+                email=email,
+                channel=channel.value,
+                channel_id=channel_user_id,
+                context={'created_via': 'universal_processor'}
+            )
         
         # 3. Retrieve conversation context
         context = await self._retrieve_context(email)

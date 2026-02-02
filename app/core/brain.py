@@ -17,6 +17,7 @@ from datetime import datetime
 import boto3
 from botocore.exceptions import ClientError
 
+from app.config.settings import settings
 from app.omnichannel.models import ChannelType
 from app.core.auditor import Auditor, AuditCategory, AuditLevel
 from app.core.supervisor import Supervisor
@@ -57,127 +58,6 @@ class Context:
             self.memory = {}
 
 
-class Brain:
-    """Orquestrador central usando Claude 3.5 Sonnet"""
-
-    def __init__(self):
-        """Initialize Brain with Bedrock client"""
-        self.bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
-        self.model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-
-    async def classify_intent(self, message: str, user_email: str) -> Intent:
-        """
-        Classifica intenção do usuário usando Claude 3.5 Sonnet
-
-        Args:
-            message: Mensagem do usuário
-            user_email: Email do usuário para contexto
-
-        Returns:
-            Intent classificado
-        """
-        try:
-            # Preparar prompt para Claude
-            prompt = self._build_classification_prompt(message, user_email)
-            
-            # Chamar Claude 3.5 Sonnet
-            response = self.bedrock.invoke_model(
-                modelId=self.model_id,
-                body=json.dumps({
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 1000,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    ]
-                })
-            )
-
-            # Parse response
-            response_body = json.loads(response['body'].read())
-            claude_response = response_body['content'][0]['text']
-            
-            # Parse Claude's JSON response
-            try:
-                classification_data = json.loads(claude_response)
-            except json.JSONDecodeError:
-                # Fallback se Claude não retornar JSON válido
-                classification_data = {
-                    "domain": "general",
-                    "action": "unknown",
-                    "confidence": 0.5
-                }
-            
-            intent = Intent(
-                domain=classification_data.get('domain', 'general'),
-                action=classification_data.get('action', 'unknown'),
-                connector=classification_data.get('connector'),
-                confidence=classification_data.get('confidence', 0.5),
-                entities=classification_data.get('entities', {})
-            )
-
-            logger.info(f"Intent classified: {intent.domain}.{intent.action} (confidence: {intent.confidence})")
-            return intent
-
-        except Exception as e:
-            logger.error(f"Error classifying intent: {str(e)}")
-            # Fallback classification
-            return Intent(
-                domain="general",
-                action="unknown",
-                confidence=0.0
-            )
-
-    def _build_classification_prompt(self, message: str, user_email: str) -> str:
-        """Build prompt for intent classification"""
-        
-        return f"""
-Você é o Brain do AgentFirst2, um sistema de IA omnichannel para restaurantes.
-
-Sua tarefa é classificar a intenção do usuário e extrair entidades relevantes.
-
-DOMÍNIOS DISPONÍVEIS:
-- retail: Operações de restaurante (pedidos, vendas, estoque, faturamento)
-- general: Conversas gerais, saudações, dúvidas sobre o sistema
-
-AÇÕES PARA RETAIL:
-- check_orders: Verificar pedidos (pendentes, confirmados, etc)
-- confirm_order: Confirmar um pedido específico
-- cancel_order: Cancelar um pedido
-- check_revenue: Verificar faturamento/vendas
-- manage_store: Abrir/fechar loja, pausar pedidos
-- check_inventory: Verificar estoque
-- get_analytics: Relatórios e análises
-
-AÇÕES PARA GENERAL:
-- greeting: Saudações, cumprimentos
-- help: Pedidos de ajuda
-- unknown: Não conseguiu classificar
-
-USUÁRIO: {user_email}
-MENSAGEM: "{message}"
-
-Responda APENAS com um JSON válido no seguinte formato:
-{{
-    "domain": "retail|general",
-    "action": "nome_da_acao",
-    "connector": "ifood|99food|shoppe|amazon|null",
-    "entities": {{
-        "order_id": "número_do_pedido_se_mencionado",
-        "time_period": "período_se_mencionado",
-        "amount": "valor_se_mencionado"
-    }},
-    "confidence": 0.0-1.0
-}}
-
-EXEMPLOS:
-- "Quantos pedidos tenho?" → {{"domain": "retail", "action": "check_orders", "connector": "ifood", "confidence": 0.9}}
-- "Confirme o pedido 123" → {{"domain": "retail", "action": "confirm_order", "entities": {{"order_id": "123"}}, "confidence": 0.95}}
-- "Qual foi meu faturamento hoje?" → {{"domain": "retail", "action": "check_revenue", "entities": {{"time_period": "today"}}, "confidence": 0.9}}
-- "Oi" → {{"domain": "general", "action": "greeting", "confidence": 0.8}}
-"""
 
 
 class Brain:
@@ -197,7 +77,7 @@ class Brain:
             supervisor: Supervisor (H.I.T.L.)
         """
         if bedrock_client is None:
-            self.bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
+            self.bedrock = boto3.client('bedrock-runtime', region_name=settings.BEDROCK_REGION)
         else:
             self.bedrock = bedrock_client
             
@@ -206,7 +86,7 @@ class Brain:
         self.auditor = auditor or Auditor()
         self.supervisor = supervisor or Supervisor(auditor=self.auditor)
         self.agents = {}  # Agentes por domínio
-        self.model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+        self.model_id = settings.BEDROCK_MODEL_ID
     
     def register_agent(self, domain: str, agent):
         """
@@ -518,6 +398,7 @@ class Brain:
                 confidence=0.0
             )
     
+
     def _build_classification_prompt(
         self,
         message: str,
@@ -537,11 +418,18 @@ class Brain:
 Você é um assistente de IA que classifica intenções de usuários em linguagem natural.
 
 Classifique a seguinte mensagem em JSON com os campos:
-- domain: retail, tax, finance, sales, hr, marketing, health, legal, education
-- action: ação específica (check_orders, confirm_order, cancel_order, get_revenue, etc)
+- domain: retail (padrão para lojistas), tax, finance, sales, hr, marketing, health, legal, education
+- action: ação específica (check_orders, confirm_order, dispatch_order, cancel_order, list_cancellation_reasons, get_revenue, open_store, close_store, greeting, etc)
 - connector: conector específico se aplicável (ifood, 99food, shoppe, amazon, etc)
 - confidence: confiança da classificação (0-1)
-- entities: dicionário com entidades extraídas (order_id, duration, date, etc)
+- entities: dicionário com entidades extraídas (order_id, duration, date, reason, etc)
+
+Regras específicas:
+1. Se o usuário apenas cumprimentar (oi, olá, bom dia, tudo bem), classifique como domain='retail', action='greeting'.
+2. Se a intenção não for clara mas parecer relacionada a vendas/pedidos, use domain='retail'.
+3. Se for sobre impostos/fiscal, use domain='tax'.
+4. "Despachar" ou "enviar" pedido mapeia para action='dispatch_order'.
+5. "Abrir loja" ou "fechar loja" mapeia para action='open_store' ou 'close_store'.
 
 Contexto:
 - Email do usuário: {context.email}

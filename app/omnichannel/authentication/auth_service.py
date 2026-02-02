@@ -22,17 +22,18 @@ class AuthConfig:
 
     def __init__(
         self,
-        region: str = "us-east-1",
-        users_table: str = "users",
+        region: str = None,
+        users_table: str = None,
         default_tier: str = "free",
-        free_tier_limit: int = 100,
-        pro_tier_limit: int = 10000,
+        free_tier_limit: int = None,
+        pro_tier_limit: int = None,
     ):
-        self.region = region
-        self.users_table = users_table
+        from app.config.settings import settings
+        self.region = region or settings.AWS_REGION
+        self.users_table = users_table or settings.DYNAMODB_USERS_TABLE
         self.default_tier = default_tier
-        self.free_tier_limit = free_tier_limit
-        self.pro_tier_limit = pro_tier_limit
+        self.free_tier_limit = free_tier_limit or settings.FREE_TIER_LIMIT
+        self.pro_tier_limit = pro_tier_limit or settings.PRO_TIER_LIMIT
 
 
 class User:

@@ -2,12 +2,13 @@
 
 from dataclasses import dataclass, asdict
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 
 class UserTier(str, Enum):
     """User tier enumeration"""
+    UNVERIFIED = "unverified"
     FREE = "free"
     PRO = "pro"
     ENTERPRISE = "enterprise"
@@ -35,9 +36,9 @@ class User:
 
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = datetime.utcnow().isoformat()
+            self.created_at = datetime.now(timezone.utc).isoformat()
         if self.updated_at is None:
-            self.updated_at = datetime.utcnow().isoformat()
+            self.updated_at = datetime.now(timezone.utc).isoformat()
 
     def to_dynamodb(self) -> Dict[str, Any]:
         """Convert to DynamoDB format"""
@@ -49,9 +50,18 @@ class User:
     @classmethod
     def from_dynamodb(cls, data: Dict[str, Any]) -> 'User':
         """Convert from DynamoDB format"""
-        data['tier'] = UserTier(data.get('tier', 'free'))
-        data['payment_status'] = PaymentStatus(data.get('payment_status', 'active'))
-        return cls(**data)
+        # Filter to only known User fields
+        known_fields = {
+            'email', 'tier', 'created_at', 'updated_at', 'telegram_id',
+            'usage_month', 'usage_total', 'payment_status', 'trial_ends_at'
+        }
+        filtered_data = {k: v for k, v in data.items() if k in known_fields}
+        
+        # Convert enum fields
+        filtered_data['tier'] = UserTier(filtered_data.get('tier', 'free'))
+        filtered_data['payment_status'] = PaymentStatus(filtered_data.get('payment_status', 'active'))
+        
+        return cls(**filtered_data)
 
 
 @dataclass
@@ -118,12 +128,27 @@ class Usage:
         """Convert to DynamoDB format"""
         data = asdict(self)
         data['tier'] = self.tier.value
+        # Create composite sort key matching DynamoDB schema (String)
+        # Using zero-padding for correct lexical sorting
+        data['month'] = f"{self.year}#{self.month:02d}"
         return data
 
     @classmethod
     def from_dynamodb(cls, data: Dict[str, Any]) -> 'Usage':
         """Convert from DynamoDB format"""
         data['tier'] = UserTier(data.get('tier', 'free'))
+        
+        # Parse composite month string back to integer if necessary
+        # The Usage dataclass expects month to be an int
+        if isinstance(data.get('month'), str) and '#' in data['month']:
+            try:
+                # Format "YYYY#MM" -> extract MM
+                _, month_str = data['month'].split('#')
+                data['month'] = int(month_str)
+            except (ValueError, IndexError):
+                # Fallback or keep as is if parsing fails (shouldn't happen with correct data)
+                pass
+                
         return cls(**data)
 
 

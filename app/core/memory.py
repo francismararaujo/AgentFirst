@@ -13,6 +13,7 @@ from typing import Dict, Optional, Any, List
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 import json
+from app.config.settings import settings
 
 
 @dataclass
@@ -42,7 +43,7 @@ class MemoryService:
     Serviço de memória usando DynamoDB
     """
     
-    def __init__(self, dynamodb_client, table_name: str = 'memory'):
+    def __init__(self, dynamodb_client, table_name: Optional[str] = None):
         """
         Inicializa Memory Service
         
@@ -51,7 +52,7 @@ class MemoryService:
             table_name: Nome da tabela
         """
         self.dynamodb = dynamodb_client
-        self.table_name = table_name
+        self.table_name = table_name or settings.DYNAMODB_MEMORY_TABLE
     
     async def get_context(self, email: str) -> Dict[str, Any]:
         """
@@ -65,7 +66,8 @@ class MemoryService:
         """
         try:
             # Buscar todos os itens para este email
-            response = await self.dynamodb.query(
+            # Boto3 client is synchronous, do not await!
+            response = self.dynamodb.query(
                 TableName=self.table_name,
                 KeyConditionExpression='email = :email',
                 ExpressionAttributeValues={
@@ -168,12 +170,13 @@ class MemoryService:
                     'domain': {'S': domain or 'global'},
                     'key': {'S': key},
                     'value': {'S': value_str},
-                    'timestamp': {'S': timestamp},
+                    'timestamp': {'N': str(int(datetime.now().timestamp()))},
                     'ttl': {'N': str(ttl)}
                 }
                 
                 # Salvar em DynamoDB
-                await self.dynamodb.put_item(
+                # Boto3 client is synchronous, do not await!
+                self.dynamodb.put_item(
                     TableName=self.table_name,
                     Item=item
                 )
@@ -198,7 +201,8 @@ class MemoryService:
         """
         try:
             # Buscar itens para este email e domínio
-            response = await self.dynamodb.query(
+            # Boto3 client is synchronous, do not await!
+            response = self.dynamodb.query(
                 TableName=self.table_name,
                 KeyConditionExpression='email = :email AND domain = :domain',
                 ExpressionAttributeValues={
@@ -346,7 +350,8 @@ class MemoryService:
             
             # Deletar cada item
             for item in response.get('Items', []):
-                await self.dynamodb.delete_item(
+                # Boto3 client is synchronous, do not await!
+                self.dynamodb.delete_item(
                     TableName=self.table_name,
                     Key={
                         'email': item['email'],
