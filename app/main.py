@@ -406,6 +406,10 @@ async def telegram_webhook(request: Request):
                     # but it's cleaner to just return the welcome message.
             else:
                 # User exists and is verified - check for merchant commands first
+                if not auth_result:
+                    logger.error(f"Authentication failed/returned None for user {user_id}")
+                    return "❌ Erro de autenticação. Tente /start novamente."
+
                 user_email = auth_result.get("email")
                 merchant_response = None
                 
