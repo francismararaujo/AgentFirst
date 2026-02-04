@@ -515,8 +515,12 @@ async def telegram_webhook(request: Request):
         
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            error_type = type(e).__name__
             response_text = (
                 "❌ Ops! Algo deu errado.\n\n"
+                f"Erro técnico: {error_type}: {str(e)}\n"
                 "🔧 Tente novamente em alguns segundos."
             )
         
