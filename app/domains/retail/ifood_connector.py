@@ -103,13 +103,13 @@ class iFoodConnector(BaseConnector):
     # Rate limiting
     MAX_REQUESTS_PER_MINUTE = 60
     
-    def __init__(self, secrets_manager: SecretsManager, merchant_id: str):
+    def __init__(self, secrets_manager: SecretsManager, merchant_id: Optional[str] = None):
         """
         Inicializa conector iFood
         
         Args:
             secrets_manager: Gerenciador de secrets
-            merchant_id: ID da loja do cliente (fornecido no onboarding)
+            merchant_id: ID da loja do cliente (opcional na inicialização)
             
         Note:
             Usa credenciais centralizadas do AgentFirst (Secrets Manager).

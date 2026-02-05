@@ -46,6 +46,7 @@ from app.omnichannel.interface import OmnichannelInterface
 from app.omnichannel.authentication.auth_service import AuthService, AuthConfig
 from app.omnichannel.authentication.telegram_auth import TelegramAuthService
 from app.omnichannel.database.repositories import ChannelMappingRepository
+from app.repositories.merchant_repository import MerchantRepository
 from app.routes import merchants  # Multi-tenant merchant API
 
 # Configure logging
@@ -449,7 +450,13 @@ async def telegram_webhook(request: Request):
                         # Initialize and register retail agent with iFood connector
                         retail_agent = RetailAgent(auditor=auditor)
                         secrets_manager = SecretsManager()
-                        ifood_connector = iFoodConnectorExtended(secrets_manager)
+                        
+                        # Get user's merchant ID
+                        merchant_repo = MerchantRepository()
+                        user_merchants = merchant_repo.get_merchants_by_user(user.email)
+                        merchant_id = user_merchants[0]['merchant_id'] if user_merchants else None
+                        
+                        ifood_connector = iFoodConnectorExtended(secrets_manager, merchant_id=merchant_id)
                         retail_agent.register_connector('ifood', ifood_connector)
                         # Inject recent orders from global cache
                         retail_agent.set_recent_orders(load_orders_from_cache())
