@@ -56,6 +56,48 @@ logger = logging.getLogger(__name__)
 # Idempotency set (Simple in-memory for MVP)
 processed_events = set()
 
+# Deduplication Service (DynamoDB-based)
+import boto3
+from botocore.exceptions import ClientError
+
+class DeduplicationService:
+    """
+    Service to handle event deduplication using DynamoDB.
+    Reuses 'agentfirst-otp' table (PK=email) to store event IDs.
+    """
+    def __init__(self):
+        self.dynamodb = boto3.resource("dynamodb", region_name=settings.AWS_REGION)
+        self.table = self.dynamodb.Table(settings.DYNAMODB_OTP_TABLE)
+        self.ttl_seconds = 3600  # 1 hour retention
+
+    def is_duplicate(self, event_id: str) -> bool:
+        """
+        Atomically checks if event_id already exists.
+        Returns True if duplicate, False if new.
+        """
+        try:
+            # key: EVENT#{event_id}
+            # We use 'email' as PK because we reuse the OTP table
+            pk_key = f"EVENT#{event_id}"
+            
+            # Atomic PutItem with ConditionExpression
+            self.table.put_item(
+                Item={
+                    "email": pk_key,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "expires_at": int(time.time()) + self.ttl_seconds
+                },
+                ConditionExpression="attribute_not_exists(email)"
+            )
+            return False  # Successfully inserted, so it's NEW (not duplicate)
+            
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
+                return True  # Already exists, so it's DUPLICATE
+            
+            logger.error(f"Deduplication Error: {str(e)}")
+            return False  # Fail open (process it) if DB error, to avoid data loss
+
 # Global Cache using File for Persistence across RIE invocations
 import json
 ORDER_CACHE_FILE = "/tmp/recent_orders.json"
@@ -739,11 +781,11 @@ async def ifood_webhook(request: Request):
             if event_type == "order.placed":
                 # New order received
                 
-                # Deduplication: Simple in-memory check
-                if event_id in processed_events:
-                    logger.info(f"Duplicate event {event_id} ignored")
+                # Deduplication: Robust DynamoDB check
+                dedup_service = DeduplicationService()
+                if dedup_service.is_duplicate(event_id):
+                    logger.info(f"Duplicate event {event_id} ignored (DynamoDB check)")
                     return {"ok": True}
-                processed_events.add(event_id)
 
                 order_id = data.get("orderId")
                 
