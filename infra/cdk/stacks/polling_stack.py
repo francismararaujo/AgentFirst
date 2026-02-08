@@ -114,6 +114,17 @@ class PollingStack(Stack):
             )
         )
 
+        # KMS (Required for encrypted DynamoDB tables)
+        task_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "kms:Decrypt",
+                    "kms:GenerateDataKey",
+                ],
+                resources=["*"],  # Allow access to CMKs
+            )
+        )
+
         # CloudWatch Logs
         task_role.add_to_policy(
             iam.PolicyStatement(
