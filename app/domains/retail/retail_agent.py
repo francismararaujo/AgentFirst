@@ -255,46 +255,10 @@ class RetailAgent:
             logger.info(f"RetailAgent checking orders for connector: {connector_type}. Available: {list(self.connectors.keys())}")
             
             if connector_type not in self.connectors:
-                logger.warning(f"Connector {connector_type} not found, using MOCK data")
-                # Mock response para desenvolvimento
-                mock_orders = [
-                    {
-                        'id': '12345',
-                        'status': 'pending',
-                        'total': 89.90,
-                        'customer': 'João Silva',
-                        'items': ['2x Hambúrguer', '1x Refrigerante'],
-                        'created_at': '2025-01-26T10:30:00Z'
-                    },
-                    {
-                        'id': '12346',
-                        'status': 'confirmed',
-                        'total': 125.50,
-                        'customer': 'Maria Santos',
-                        'items': ['1x Pizza Grande', '2x Refrigerante'],
-                        'created_at': '2025-01-26T11:15:00Z'
-                    },
-                    {
-                        'id': '12347',
-                        'status': 'ready',
-                        'total': 67.30,
-                        'customer': 'Pedro Costa',
-                        'items': ['1x Sanduíche', '1x Suco'],
-                        'created_at': '2025-01-26T11:45:00Z'
-                    }
-                ]
-                
-                # Atualizar estado
-                self.state.last_connector = connector_type
-                self.state.last_orders = mock_orders
-                
                 return {
-                    'success': True,
-                    'connector': connector_type,
-                    'orders': mock_orders,
-                    'total_orders': len(mock_orders),
-                    'pending_orders': len([o for o in mock_orders if o['status'] == 'pending']),
-                    'message': f"Encontrados {len(mock_orders)} pedidos no {connector_type.upper()} (MOCK)"
+                    'success': False,
+                    'error': f"Connector '{connector_type}' not found or not initialized",
+                    'available_connectors': list(self.connectors.keys())
                 }
             
             # Usar conector real
@@ -367,13 +331,10 @@ class RetailAgent:
                     }
             
             if connector_type not in self.connectors:
-                # Mock response para desenvolvimento
                 return {
-                    'success': True,
-                    'order_id': order_id,
-                    'connector': connector_type,
-                    'message': f"Pedido {order_id} confirmado no {connector_type.upper()}",
-                    'confirmed_at': datetime.now().isoformat()
+                    'success': False,
+                    'error': f"Connector '{connector_type}' not found",
+                    'order_id': order_id
                 }
             
             # Usar conector real
@@ -417,14 +378,10 @@ class RetailAgent:
                 }
             
             if connector_type not in self.connectors:
-                # Mock response para desenvolvimento
                 return {
-                    'success': True,
-                    'order_id': order_id,
-                    'reason': reason,
-                    'connector': connector_type,
-                    'message': f"Pedido {order_id} cancelado no {connector_type.upper()}",
-                    'cancelled_at': datetime.now().isoformat()
+                    'success': False,
+                    'error': f"Connector '{connector_type}' not found",
+                    'order_id': order_id
                 }
             
             # Usar conector real
@@ -585,27 +542,10 @@ class RetailAgent:
             connector_type = intent.connector or 'ifood'
             
             if connector_type not in self.connectors:
-                # Mock response para desenvolvimento
-                mock_revenue = {
-                    'period': time_period,
-                    'total_revenue': 2847.50,
-                    'total_orders': 23,
-                    'average_ticket': 123.80,
-                    'top_items': [
-                        {'name': 'Hambúrguer Clássico', 'quantity': 45, 'revenue': 1125.00},
-                        {'name': 'Refrigerante 2L', 'quantity': 38, 'revenue': 456.00},
-                        {'name': 'Batata Frita', 'quantity': 35, 'revenue': 525.00}
-                    ]
-                }
-                
-                # Atualizar estado
-                self.state.last_revenue = mock_revenue
-                
                 return {
-                    'success': True,
-                    'connector': connector_type,
-                    'revenue': mock_revenue,
-                    'message': f"Faturamento {time_period}: R$ {mock_revenue['total_revenue']:.2f}"
+                    'success': False,
+                    'error': f"Connector '{connector_type}' not found",
+                    'period': time_period
                 }
             
             # Usar conector real
@@ -645,31 +585,9 @@ class RetailAgent:
             connector_type = intent.connector or 'ifood'
             
             if connector_type not in self.connectors:
-                # Mock response para desenvolvimento
-                if action == 'close':
-                    self.state.store_status = 'closed'
-                    message = f"Loja fechada no {connector_type.upper()}"
-                    if duration:
-                        message += f" por {duration}"
-                elif action == 'open':
-                    self.state.store_status = 'open'
-                    message = f"Loja aberta no {connector_type.upper()}"
-                elif action == 'pause':
-                    self.state.store_status = 'paused'
-                    message = f"Pedidos pausados no {connector_type.upper()}"
-                    if duration:
-                        message += f" por {duration}"
-                else:
-                    message = f"Status atual: {self.state.store_status}"
-                
                 return {
-                    'success': True,
-                    'connector': connector_type,
-                    'action': action,
-                    'status': self.state.store_status,
-                    'duration': duration,
-                    'message': message,
-                    'updated_at': datetime.now().isoformat()
+                    'success': False,
+                    'error': f"Connector '{connector_type}' not found"
                 }
             
             # Usar conector real
@@ -707,14 +625,9 @@ class RetailAgent:
             connector_type = intent.connector or 'ifood'
             
             if connector_type not in self.connectors:
-                # Mock response para desenvolvimento
                 return {
-                    'success': True,
-                    'connector': connector_type,
-                    'item': item,
-                    'quantity': quantity,
-                    'message': f"Estoque atualizado: {item} = {quantity}",
-                    'updated_at': datetime.now().isoformat()
+                    'success': False,
+                    'error': f"Connector '{connector_type}' not found"
                 }
             
             # Usar conector real
@@ -750,27 +663,9 @@ class RetailAgent:
             connector_type = intent.connector or 'ifood'
             
             if connector_type not in self.connectors:
-                # Mock response para desenvolvimento
-                mock_forecast = {
-                    'period': period,
-                    'predicted_orders': 150,
-                    'predicted_revenue': 12500.00,
-                    'top_items_forecast': [
-                        {'item': 'Hambúrguer', 'predicted_quantity': 80},
-                        {'item': 'Refrigerante', 'predicted_quantity': 120},
-                        {'item': 'Batata Frita', 'predicted_quantity': 60}
-                    ],
-                    'recommendations': [
-                        'Aumentar estoque de Refrigerante',
-                        'Preparar ingredientes para Hambúrguer'
-                    ]
-                }
-                
                 return {
-                    'success': True,
-                    'connector': connector_type,
-                    'forecast': mock_forecast,
-                    'message': f"Previsão para {period}: {mock_forecast['predicted_orders']} pedidos"
+                    'success': False,
+                    'error': f"Connector '{connector_type}' not found"
                 }
             
             # Usar conector real

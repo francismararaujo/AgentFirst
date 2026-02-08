@@ -24,7 +24,7 @@ class SecretsManager:
 
     def get_secret(self, secret_name: str, use_cache: bool = True) -> Optional[Dict[str, Any]]:
         """
-        Retrieve a secret from AWS Secrets Manager
+        Retrieve a secret from AWS Secrets Manager or Environment Variables (Local Dev)
 
         Args:
             secret_name: Name of the secret
@@ -33,13 +33,24 @@ class SecretsManager:
         Returns:
             Secret value as dictionary, or None if not found
         """
-        try:
-            # Check cache first
-            if use_cache and secret_name in self._cache:
-                logger.debug(f"Using cached secret: {secret_name}")
-                return self._cache[secret_name]
+        # 1. Check Cache
+        if use_cache and secret_name in self._cache:
+            logger.debug(f"Using cached secret: {secret_name}")
+            return self._cache[secret_name]
 
-            # Retrieve from Secrets Manager
+        # 2. Check Environment Variables (Local Fallback / Override)
+        # Convert secret name "AgentFirst/ifood-credentials" -> "IFOD_CREDENTIALS" or similar logic?
+        # Better: Check for specific ENV VARS that map to this secret's known keys
+        
+        # Mappings for specific known secrets to Env Vars structure
+        env_secret = self._get_from_env(secret_name)
+        if env_secret:
+            logger.info(f"Using environment variable for secret: {secret_name}")
+            self._cache[secret_name] = env_secret
+            return env_secret
+
+        # 3. Retrieve from AWS Secrets Manager
+        try:
             response = self.client.get_secret_value(SecretId=secret_name)
 
             # Parse secret value
@@ -50,21 +61,48 @@ class SecretsManager:
 
             # Cache the secret
             self._cache[secret_name] = secret_value
-            logger.info(f"Retrieved secret: {secret_name}")
+            logger.info(f"Retrieved secret from AWS: {secret_name}")
 
             return secret_value
 
         except ClientError as e:
             error_code = e.response["Error"]["Code"]
             if error_code == "ResourceNotFoundException":
-                logger.warning(f"Secret not found: {secret_name}")
-            elif error_code == "InvalidRequestException":
-                logger.error(f"Invalid request for secret: {secret_name}")
-            elif error_code == "InvalidParameterException":
-                logger.error(f"Invalid parameter for secret: {secret_name}")
+                logger.warning(f"Secret not found in AWS: {secret_name}")
+            elif error_code in ["UnrecognizedClientException", "InvalidClientTokenId", "AuthFailure"]:
+                 logger.warning(f"AWS Auth failed for {secret_name}, and no local env var found. ({error_code})")
             else:
                 logger.error(f"Error retrieving secret {secret_name}: {error_code}")
             return None
+
+    def _get_from_env(self, secret_name: str) -> Optional[Dict[str, Any]]:
+        """Helper to map secret names to environment variables"""
+        import os
+        
+        if "ifood" in secret_name.lower():
+            # Check for standard iFood env vars
+            client_id = os.getenv("IFOOD_CLIENT_ID")
+            client_secret = os.getenv("IFOOD_CLIENT_SECRET")
+            merchant_id = os.getenv("IFOOD_MERCHANT_ID")
+            webhook_secret = os.getenv("IFOOD_WEBHOOK_SECRET")
+            
+            if client_id and client_secret:
+                return {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "merchant_id": merchant_id,
+                    "webhook_secret": webhook_secret
+                }
+                
+        elif "telegram" in secret_name.lower():
+             token = os.getenv("TELEGRAM_BOT_TOKEN")
+             if token:
+                 return {
+                     "bot_token": token,
+                     "chat_id": os.getenv("TELEGRAM_CHAT_ID")
+                 }
+                 
+        return None
 
     def get_telegram_token(self) -> Optional[str]:
         """Get Telegram bot token from Secrets Manager"""

@@ -1,0 +1,72 @@
+{
+    "Configuration": {
+        "FunctionName": "agentfirst-production",
+        "FunctionArn": "arn:aws:lambda:us-east-1:373527788609:function:agentfirst-production",
+        "Role": "arn:aws:iam::373527788609:role/agentfirst-lambda-product-LambdaExecutionRoleD5C260-WIDUODTAzCPg",
+        "CodeSize": 0,
+        "Description": "AgentFirst2 MVP Lambda function",
+        "Timeout": 30,
+        "MemorySize": 512,
+        "LastModified": "2026-01-30T23:49:26.000+0000",
+        "CodeSha256": "db4f421b01422c434057cc35fe3386a4e367a027bd700dfad2f83279682a4dfa",
+        "Version": "$LATEST",
+        "VpcConfig": {
+            "SubnetIds": [],
+            "SecurityGroupIds": [],
+            "VpcId": "",
+            "Ipv6AllowedForDualStack": false
+        },
+        "Environment": {
+            "Variables": {
+                "DYNAMODB_USAGE_TABLE": "agentfirst-usage-production",
+                "SQS_QUEUE_URL": "https://sqs.us-east-1.amazonaws.com/373527788609/agentfirst-queue-production",
+                "DYNAMODB_ESCALATION_TABLE": "agentfirst-escalation-production",
+                "TELEGRAM_BOT_TOKEN": "",
+                "IFOOD_CLIENT_ID": "",
+                "ENVIRONMENT": "production",
+                "SNS_RETAIL_TOPIC_ARN": "arn:aws:sns:us-east-1:373527788609:agentfirst-retail-production",
+                "DYNAMODB_SESSIONS_TABLE": "agentfirst-sessions-production",
+                "DYNAMODB_OTP_TABLE": "agentfirst-otp-production",
+                "DYNAMODB_AUDIT_TABLE": "agentfirst-audit-logs-production",
+                "IFOOD_CLIENT_SECRET": "",
+                "TELEGRAM_WEBHOOK_URL": "",
+                "DYNAMODB_MEMORY_TABLE": "agentfirst-memory-production",
+                "DYNAMODB_USERS_TABLE": "agentfirst-users-production",
+                "SQS_DLQ_URL": "https://sqs.us-east-1.amazonaws.com/373527788609/agentfirst-dlq-production",
+                "SENDER_EMAIL": "naoresponder@agentfirst.com.br",
+                "SNS_OMNICHANNEL_TOPIC_ARN": "arn:aws:sns:us-east-1:373527788609:agentfirst-omnichannel-production"
+            }
+        },
+        "TracingConfig": {
+            "Mode": "Active"
+        },
+        "RevisionId": "594a3434-e550-4789-9f17-dc4d0a4f3d48",
+        "State": "Active",
+        "LastUpdateStatus": "Successful",
+        "PackageType": "Image",
+        "Architectures": [
+            "x86_64"
+        ],
+        "EphemeralStorage": {
+            "Size": 512
+        },
+        "SnapStart": {
+            "ApplyOn": "None",
+            "OptimizationStatus": "Off"
+        },
+        "LoggingConfig": {
+            "LogFormat": "Text",
+            "LogGroup": "/aws/lambda/agentfirst-production"
+        }
+    },
+    "Code": {
+        "RepositoryType": "ECR",
+        "ImageUri": "373527788609.dkr.ecr.us-east-1.amazonaws.com/cdk-hnb659fds-container-assets-373527788609-us-east-1:7db3043244fa139eeda975602c4e3a595644cccb569d6612a9123462fe60f833",
+        "ResolvedImageUri": "373527788609.dkr.ecr.us-east-1.amazonaws.com/cdk-hnb659fds-container-assets-373527788609-us-east-1@sha256:db4f421b01422c434057cc35fe3386a4e367a027bd700dfad2f83279682a4dfa"
+    },
+    "Tags": {
+        "aws:cloudformation:stack-name": "agentfirst-lambda-production",
+        "aws:cloudformation:stack-id": "arn:aws:cloudformation:us-east-1:373527788609:stack/agentfirst-lambda-production/b7313f50-fb0d-11f0-9916-1275cf1e28cd",
+        "aws:cloudformation:logical-id": "AgentFirstLambda99524274"
+    }
+}

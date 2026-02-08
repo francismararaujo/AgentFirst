@@ -40,7 +40,7 @@ from app.core.auditor import Auditor, AuditCategory, AuditLevel
 from app.core.supervisor import Supervisor
 from app.core.event_bus import EventBus, EventBusConfig, EventMessage
 from app.domains.retail.retail_agent import RetailAgent
-from app.domains.retail.ifood_connector_extended import iFoodConnectorExtended
+from app.domains.retail.ifood_connector import iFoodConnector
 from app.config.secrets_manager import SecretsManager
 from app.omnichannel.interface import OmnichannelInterface
 from app.omnichannel.authentication.auth_service import AuthService, AuthConfig
@@ -456,7 +456,7 @@ async def telegram_webhook(request: Request):
                         user_merchants = merchant_repo.get_merchants_by_user(user.email)
                         merchant_id = user_merchants[0]['merchant_id'] if user_merchants else None
                         
-                        ifood_connector = iFoodConnectorExtended(secrets_manager, merchant_id=merchant_id)
+                        ifood_connector = iFoodConnector(secrets_manager, merchant_id=merchant_id)
                         retail_agent.register_connector('ifood', ifood_connector)
                         # Inject recent orders from global cache
                         retail_agent.set_recent_orders(load_orders_from_cache())
@@ -731,7 +731,7 @@ async def ifood_webhook(request: Request):
             # Initialize and register retail agent
             retail_agent = RetailAgent(auditor=auditor)
             secrets_manager = SecretsManager()
-            ifood_connector = iFoodConnectorExtended(secrets_manager)
+            ifood_connector = iFoodConnector(secrets_manager)
             retail_agent.register_connector('ifood', ifood_connector)
             brain.register_agent('retail', retail_agent)
             

@@ -155,6 +155,7 @@ class PollingStack(Stack):
             environment={
                 "ENVIRONMENT": environment,
                 "AWS_REGION": self.region,
+                "DYNAMODB_MERCHANTS_TABLE": f"agentfirst-merchants-{environment}",
             },
             # Override entrypoint and command to run Python script
             # Working directory in Lambda image is /var/task
