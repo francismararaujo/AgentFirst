@@ -1,0 +1,24 @@
+# Este arquivo define a arquitetura corporativa em código (Infrastructure as Strategy)
+# O AgentFirst CLI lê este arquivo para auditar o repositório
+
+domains:
+  - name: CUSTOMER_SERVICE
+    owner: "atendimento@empresa.com"
+    allowed_autonomous_actions:
+      - "get_order_status"
+      - "send_faq_link"
+      
+  - name: FINANCE
+    owner: "cfo@empresa.com"
+    isolation_level: STRICT
+    allowed_autonomous_actions: [] # Zero autonomia por padrão
+    
+agents:
+  - id: "SupportBot"
+    domain: CUSTOMER_SERVICE
+    max_decision_level: ASSISTED # Pode ser: HUMAN, ASSISTED, AUTOMATED, AUTONOMOUS
+    
+policies:
+  - rule: "CROSS_DOMAIN_MUTATION"
+    description: "Um agente de um domínio não pode realizar POST/DELETE em outro domínio sem override humano."
+    action: BLOCK

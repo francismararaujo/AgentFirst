@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="pt">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentFirst | Architecture Before Autonomy</title>
+    <meta name="description"
+        content="AgentFirst instala governança estrutural e Contextos Delimitados nos seus fluxos de IA antes de chegarem à produção.">
+    <!-- Google Fonts: Inter and Fira Code for terminal -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="glow-orb fixed-orb-1"></div>
+    <div class="glow-orb fixed-orb-2"></div>
+
+    <nav class="navbar">
+        <div class="nav-content">
+            <a href="#" class="logo">
+                <img src="logo-transparent.png" alt="AgentFirst Logo" class="nav-logo-img">
+                AgentFirst
+            </a>
+            <ul class="nav-links">
+                <li><a href="#about" data-i18n="nav_about">Sobre Nós</a></li>
+                <li><a href="#agents" data-i18n="nav_consulting">Agentes</a></li>
+                <li><a href="#pilot" data-i18n="nav_pilot">Piloto Seguro</a></li>
+                <li class="lang-toggle">
+                    <span id="lang-pt" class="active">PT</span> | <span id="lang-en">EN</span>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="hero-content">
+            <h1 data-i18n="hero_title">Seus desenvolvedores estão dando as chaves de produção aos LLMs.<br><span
+                    class="highlight">Nós construímos os freios.</span></h1>
+            <p class="hero-subtitle" data-i18n="hero_subtitle">A AgentFirst instala governança estrutural e Contextos
+                Delimitados (Bounded Contexts) nos seus fluxos de IA. Pare a Entropia Organizacional antes do seu
+                primeiro incidente autônomo.</p>
+            <div class="hero-cta" style="margin-bottom: 1.5rem;">
+                <a href="https://t.me/agent_first_bot" target="_blank" class="btn-primary" data-i18n="hero_cta1">Falar
+                    com
+                    Agente (Demo)</a>
+                <a href="#pilot" class="btn-secondary" data-i18n="hero_cta2">Ver Piloto Seguro</a>
+            </div>
+            <div class="omnichannel-trust"
+                style="color: var(--text-secondary); font-size: 0.9rem; display: flex; align-items: center; gap: 0.8rem;">
+                <span style="opacity: 0.7;">Opera nativamente via:</span>
+                <strong style="color: white; display: flex; align-items: center; gap: 0.3rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent-green)">
+                        <path
+                            d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                    </svg>
+                    WhatsApp
+                </strong>
+                <span style="opacity: 0.3;">/</span>
+                <strong style="color: white; display: flex; align-items: center; gap: 0.3rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent-blue)">
+                        <path
+                            d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+                    </svg>
+                    Telegram
+                </strong>
+            </div>
+        </div>
+
+        <div class="hero-terminal" id="demo">
+            <div class="terminal-header">
+                <div class="mac-btns">
+                    <span class="close"></span><span class="min"></span><span class="max"></span>
+                </div>
+                <div class="terminal-title">af-cli-prototype/run.sh</div>
+            </div>
+            <div class="terminal-body" id="typed-terminal">
+                <!-- Javascript will inject the typing animation here -->
+            </div>
+        </div>
+    </header>
+
+    <!-- UNIFIED ABOUT US JOURNEY (MANIFESTO) -->
+    <section id="about" class="section manifesto-section">
+        <div class="container manifesto-container">
+
+            <div class="manifesto-header text-center">
+                <div class="badge" data-i18n="manifesto_badge">O Manifesto AgentFirst</div>
+                <h2 data-i18n="manifesto_title">Estrutura antes da Autonomia.</h2>
+                <p data-i18n="manifesto_desc" class="mt-4"
+                    style="max-width: 800px; margin: 0 auto; color: var(--text-secondary); line-height: 1.6; font-size: 1.1rem;">
+                </p>
+            </div>
+
+            <div class="manifesto-content glass mt-4">
+
+                <div class="manifesto-row">
+                    <div class="manifesto-label">
+                        <h3 data-i18n="m_thesis_title">1. A Tese</h3>
+                    </div>
+                    <div class="manifesto-text">
+                        <p data-i18n="m_thesis_text">A AgentFirst transcende a consultoria tradicional. Nós somos
+                            arquitetos de <strong>Infomecânica e Governança Agentic</strong>.<br><br>Nossa missão
+                            central é garantir que a inevitável transição corporativa para IAs autônomas ocorra sob
+                            estrita contenção arquitetural. Nós não criamos apenas a inteligência; nós forjamos as
+                            engrenagens e os freios corporativos que ela deve obedecer rigorosamente.</p>
+                    </div>
+                </div>
+
+                <div class="manifesto-row">
+                    <div class="manifesto-label">
+                        <h3 data-i18n="m_prob_title">2. A Entropia</h3>
+                    </div>
+                    <div class="manifesto-text">
+                        <p data-i18n="m_prob_text">Na Engenharia de Sistemas, agentes autônomos são aceleradores
+                            naturais de entropia. Sem limites hard-coded, uma IA pode facilmente cruzar fronteiras
+                            operacionais: um bot de atendimento alterando inadvertidamente o ERP
+                            financeiro.<br><br>Acoplamento caótico de domínios, zero observabilidade executiva e falhas
+                            financeiras irreversíveis em milissegundos assumem o controle. <strong>Esta é a realidade de
+                                um sistema não governado.</strong></p>
+                    </div>
+                </div>
+
+                <div class="manifesto-row">
+                    <div class="manifesto-label">
+                        <h3 data-i18n="m_sol_title">3. O Gatekeeper</h3>
+                    </div>
+                    <div class="manifesto-text">
+                        <p data-i18n="m_sol_text">Não combatemos o caos com relatórios em PDF ou comitês de risco
+                            teóricos. Nós construímos infraestrutura cibernética real.<br><br>Através de uma
+                            constituição declarativa (<code>agentfirst.yaml</code>), você define regras absolutas de
+                            isolamento. Em tempo real, nosso <strong>AgentFirst Core Middleware</strong> intercepta toda
+                            intenção do LLM antes da execução da API real. Uma política foi violada? O agente é
+                            fisicamente travado aguardando autorização humana (Human-In-The-Loop).</p>
+
+                        <div class="code-block manifesto-code">
+                            <pre><code><span class="keyword">domains</span>:
+  - <span class="property">name</span>: <span class="string">ECOMMERCE_CHANNELS</span>
+    <span class="property">isolation_level</span>: <span class="string">STRICT</span>
+    <span class="property">policies</span>:
+      - <span class="property">rule</span>: <span class="string">RESTRICT_PRICE_DROP</span>
+        <span class="property">max_decrease_pct</span>: <span class="number">0.20</span>
+        <span class="property">action</span>: <span class="string">DECISION_OVERRIDE</span></code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="manifesto-row">
+                    <div class="manifesto-label">
+                        <h3 data-i18n="m_meth_title">4. A Entrega</h3>
+                    </div>
+                    <div class="manifesto-text">
+                        <p data-i18n="m_meth_text">O mercado corporativo moderno não tolera implantações nebulosas de
+                            seis meses. Nosso modelo foi desenhado de forma estrita para CTOs e Arquitetos.<br><br>Em
+                            exatas <strong>4 semanas</strong>, nós mapeamos seu principal eixo de risco, implementamos o
+                            primeiro Agente encapsulado no Gatekeeper e o colocamos em produção. No último dia, sua
+                            engenharia recebe o Repositório Seguro e as ferramentas CLI para escalar essa arquitetura
+                            internamente.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+    <!-- END UNIFIED ABOUT US JOURNEY -->
+
+    <!-- AGENT ECOSYSTEM SECTION -->
+    <section id="agents" class="section agents-section">
+        <div class="container">
+            <div class="text-center mb-6" style="max-width: 800px; margin: 0 auto;">
+                <div class="badge" data-i18n="eco_badge" style="margin-bottom: 1rem;">Ecossistema</div>
+                <h2 data-i18n="eco_title" class="journey-title">A Frota Autônoma Pronta para Produção</h2>
+                <p data-i18n="eco_desc">A AgentFirst não é apenas middleware. Nós desenvolvemos uma frota de
+                    Colaboradores Digitais pré-treinados, isolados por Domínios (DDD) e nativamente executando sob a
+                    nossa Arquitetura Gatekeeper.</p>
+            </div>
+
+            <div class="agent-grid">
+                <div class="agent-card">
+                    <div class="card-icon">🧠</div>
+                    <h3 data-i18n="agent_core_title">AgentFirst Core</h3>
+                    <p data-i18n="agent_core_desc">O Cérebro Omnichannel. Ouve o usuário em linguagem natural via
+                        Telegram ou WhatsApp, entende o contexto histórico da conversa e roteia cirurgicamente a
+                        intenção para o Agente Especialista adequado.</p>
+                </div>
+
+                <div class="agent-card">
+                    <div class="card-icon">🤖</div>
+                    <h3 data-i18n="agent_retail_title">AgentFirst Retail</h3>
+                    <p data-i18n="agent_retail_desc">Especialista em Logística e Vendas. Integrado nativamente a
+                        plataformas (iFood, Shopee), faz polling contínuo de pedidos, atualiza estoques e calcula
+                        anomalias de preços 24/7.</p>
+                </div>
+
+                <div class="agent-card">
+                    <div class="card-icon">⚙️</div>
+                    <h3 data-i18n="agent_sync_title">AgentFirst Integrator</h3>
+                    <p data-i18n="agent_sync_desc">O Engenheiro de Dados. Conecta de forma segura a frota de IA com seu
+                        ERP ou banco de dados legado, garantindo que os LLMs tomem decisões usando a única Fonte de
+                        Verdade (SSOT).</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Placeholder logic to remove old agents section -->
+
+    <section id="pilot" class="section cta-section text-center">
+        <div class="container glass cta-box">
+            <h2 data-i18n="pilot_title">O Framework do Piloto Seguro</h2>
+            <p data-i18n="pilot_desc">Do Zero a um Agente Autônomo e em Produção em 4 Semanas.</p>
+            <p class="cta-sub mb-4" data-i18n="pilot_sub">Nós construímos seu primeiro Agente de missão crítica envolto
+                na
+                nossa Arquitetura Gatekeeper. No Dia 30, nós entregamos o "Caminho de Ouro" (Golden Path) para a sua
+                Engenharia escalar.</p>
+
+            <div class="timeline mt-5 mb-5 text-left">
+                <div class="timeline-step glass">
+                    <div class="step-number">01</div>
+                    <h4 data-i18n="pilot_step1_title">Semana 1: Triage & Arquitetura</h4>
+                    <p data-i18n="pilot_step1_desc">Mapeamento das suas APIs e desenho das Políticas Restritivas de
+                        Domínio (DDD).</p>
+                </div>
+                <div class="timeline-step glass">
+                    <div class="step-number">02</div>
+                    <h4 data-i18n="pilot_step2_title">Semana 2: Infiltração e Desenvolvimento</h4>
+                    <p data-i18n="pilot_step2_desc">Construção do seu primeiro Agente Autônomo encapsulado no nosso
+                        Middleware Gatekeeper.</p>
+                </div>
+                <div class="timeline-step glass">
+                    <div class="step-number">03</div>
+                    <h4 data-i18n="pilot_step3_title">Semana 3: Teste de Stress</h4>
+                    <p data-i18n="pilot_step3_desc">Simulamos alucinações extremas para provar que a IA está contida e
+                        não quebra seu banco de dados.</p>
+                </div>
+                <div class="timeline-step glass">
+                    <div class="step-number">04</div>
+                    <h4 data-i18n="pilot_step4_title">Semana 4: Handover</h4>
+                    <p data-i18n="pilot_step4_desc">Deploy em produção. Entregamos o repositório seguro (Golden Path)
+                        para sua equipe assumir a operação.</p>
+                </div>
+            </div>
+            <a href="https://www.linkedin.com/company/theagentfirstmanifesto" target="_blank" class="btn-primary mt-2"
+                data-i18n="pilot_btn">Agende uma reunião</a>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container text-center">
+            <div class="logo">
+                <span class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 22h20L12 2zm0 4.1L18 19H6l6-12.9z" fill="white" />
+                        <path d="M12 11l-3 7h6l-3-7z" fill="var(--accent-cyan)" />
+                    </svg>
+                </span>
+                AgentFirst
+            </div>
+            <p data-i18n="foot_1">Arquitetando a fundação para autonomia segura.</p>
+            <p class="copyright" data-i18n="foot_2">Fundado por Francismar Araujo — 18 anos de Arquitetura & Engenharia
+                Enterprise.</p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

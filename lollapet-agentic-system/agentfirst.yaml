@@ -1,0 +1,20 @@
+domains:
+  - name: INVENTORY_MANAGEMENT
+    owner: "logistica@lollapet.com"
+    allowed_autonomous_actions:
+      - "read_supplier_xml"
+      - "parse_stock_data"
+      
+  - name: ECOMMERCE_CHANNELS
+    owner: "vendas@lollapet.com"
+    isolation_level: STRICT
+    allowed_autonomous_actions: 
+      - "update_platform_stock"
+    policies:
+      - rule: "RESTRICT_PRICE_DROP"
+        description: "A price drop cannot exceed 20% of the current price without human override."
+        max_decrease_pct: 0.20
+        action: DECISION_OVERRIDE
+      - rule: "RESTRICT_ZERO_STOCK_MASSIVE"
+        description: "Cannot zero out stock if previous stock > 50 without override."
+        action: DECISION_OVERRIDE

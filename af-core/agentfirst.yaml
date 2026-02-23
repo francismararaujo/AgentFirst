@@ -1,0 +1,17 @@
+domains:
+  - name: CUSTOMER_SERVICE
+    owner: "atendimento@empresa.com"
+    allowed_autonomous_actions:
+      - "get_order_status"
+      - "send_faq_link"
+      
+  - name: FINANCE
+    owner: "cfo@empresa.com"
+    isolation_level: STRICT
+    allowed_autonomous_actions: 
+      - "refund_order_api"
+    
+policies:
+  - rule: "STRICT_DOMAIN_ISOLATION"
+    description: "Agents cannot bind to tools outside their declared domain."
+    action: BLOCK

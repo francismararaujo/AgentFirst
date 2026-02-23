@@ -1,0 +1,16 @@
+<SupplierData>
+    <UpdateDate>2023-10-27T11:00:00</UpdateDate>
+    <Items>
+        <Item SKU="RC-MAXI-15KG">
+            <Name>Ração Royal Canin Maxi Adulto 15kg</Name>
+            <Quantity>25</Quantity>
+            <!-- ERROR FROM SUPPLIER ERP: Decimal point shifted -->
+            <Price>3.49</Price> 
+        </Item>
+        <Item SKU="BRAVECTO-10-20">
+            <Name>Antipulgas Bravecto Cães 10 a 20kg</Name>
+            <Quantity>50</Quantity>
+            <Price>195.00</Price>
+        </Item>
+    </Items>
+</SupplierData>
